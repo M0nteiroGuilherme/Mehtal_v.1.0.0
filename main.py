@@ -62,11 +62,11 @@ def PegandoDados_PQPMain(APQPSelecionada):
     PNs           = Pagina_Entrada.range('I4:I1000').value   
     REV           = Pagina_Entrada.range('J4:J1000').value
     descricao     = Pagina_Entrada.range('K4:K1000').value
-    comprador     =
+    comprador     = Pagina_Entrada.range('L4:L1000').value
+    Desenhos3D    = Pagina_Entrada.range('M4:M1000').value
     Desenhos2D    = Pagina_Entrada.range("N4:N1000").value
-    Desenhos3D    = Pagina_Entrada.range('O4:O1000').value
-    VolumeAnual   = Pagina_Entrada.range('P4:P1000').value   
-    FatEstimado   = Pagina_Entrada.range('Q4:Q1000').value   
+    VolumeAnual   = Pagina_Entrada.range('O4:P1000').value   
+    PesoPeca      = Pagina_Entrada.range('P4:P1000').value   
     QTD           = Pagina_Entrada.range('R4:R1000').value   
     Componentes   = Pagina_Entrada.range('S4:S1000').value   
     Projeto       = Pagina_Entrada.range('T4:T1000').value   
@@ -99,14 +99,19 @@ def PegandoDados_PQPMain(APQPSelecionada):
     VolumeAnualList, _     = PegarInf(VolumeAnual)
     DataEntradaList, _     = PegarInf(DataEntrada)
     DataRespostaList, _    = PegarInf(DataResposta)
-    FatEstimadoLista, _    = PegarInf(FatEstimado)
     QTDLista, _            = PegarInf(QTD)
     ComponentesLista, _    = PegarInf(Componentes)
     ReponsavelLista, _     = PegarInf(Reponsavel)
-    
+    realizadoLista,_       = PegarInf(realizado)
+    ClienteLista,_         = PegarInf(Cliente)
+    tipoLista,_            = PegarInf(tipo)
+    descricaoLista,_       = PegarInf(descricao)
+    compradorLista,_       = PegarInf(comprador)
+    PesoPecaLista,_        = PegarInf(PesoPeca)
+
     # Removido o .save() pois você só está lendo dados, não editou nada!
     
-    return ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, FatEstimadoLista, QTDLista, ComponentesLista, ReponsavelLista
+    return ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista
 
 
 # ---------------------------------------------------------
@@ -152,22 +157,31 @@ def CriandoPastas(PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta
 # =========================================================
 
 # 1. Puxa os dados do Excel "Ao vivo"
-ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, FatEstimadoLista, QTDLista, ComponentesLista, ReponsavelLista = PegandoDados_PQPMain('MainAPQP')
+ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista = PegandoDados_PQPMain('MainAPQP')
 
 # 2. Cria as pastas e edita os arquivos copiados usando as listas
 CriandoPastas(PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList)
 
 def PreenchendoAPQP (APQP_Input):
     print('celula para adidicinoar: ')
+    CelulaInico = input()
     #pede a celula para começar a adição ex b15 Ele soma com o I e adicoina apartir dai usando o "PegandoDados_PQPMain"
+    
+    ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista = PegandoDados_PQPMain('MainAPQP')
+    
+    Tamanho_list = len(PNsList)
+    i = 0
     
     Plan_Entrada = xw.Book(f'{APQP_Input}.xlsx')
     Pagina_Entrada = Plan_Entrada.sheets['APQP']
+        
+    
+    while (Tamanho_list > i):    
     
     Realizado   = Pagina_Entrada.cells['B']
     Obs = Pagina_Entrada.cells['C']
-    Prioridade  = Pagina_Entrada.cells['d']
     Cliente = Pagina_Entrada.cells['F']
+    Planta = Pagina_Entrada.cells['G']
     Tipo    = Pagina_Entrada.cells['H']
     RFQ = Pagina_Entrada.cells['I']
     Item    = Pagina_Entrada.cells['J']
@@ -177,6 +191,7 @@ def PreenchendoAPQP (APQP_Input):
     Desenhos2D  = Pagina_Entrada.cells['N']
     Desenhos3D  = Pagina_Entrada.cells['O']
     Volume  = Pagina_Entrada.cells['P']
+    Peso  = Pagina_Entrada.cells['P']
     Entrada    = Pagina_Entrada.cells['Y']
     Abertura    = Pagina_Entrada.cells['Z']
     Resposta    = Pagina_Entrada.cells['AA']
