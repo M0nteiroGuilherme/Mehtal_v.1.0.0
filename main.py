@@ -167,7 +167,7 @@ def PreenchendoAPQP (APQP_Input):
     CelulaInico = input()
     #pede a celula para começar a adição ex b15 Ele soma com o I e adicoina apartir dai usando o "PegandoDados_PQPMain"
     
-    ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista = PegandoDados_PQPMain('MainAPQP')
+    ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesList, ReponsavelList,RealizadoList, ClienteList, tipoList, descricaoList, compradorList, PesoPecaList = PegandoDados_PQPMain('MainAPQP')
     
     Tamanho_list = len(PNsList)
     i = 0
@@ -178,23 +178,23 @@ def PreenchendoAPQP (APQP_Input):
     
     while (Tamanho_list > i):    
     
-    Realizado   = Pagina_Entrada.cells['B']
-    Obs = Pagina_Entrada.cells['C']
-    Cliente = Pagina_Entrada.cells['F']
-    Planta = Pagina_Entrada.cells['G']
-    Tipo    = Pagina_Entrada.cells['H']
-    RFQ = Pagina_Entrada.cells['I']
-    Item    = Pagina_Entrada.cells['J']
-    REV = Pagina_Entrada.cells['K']
-    Descrição   = Pagina_Entrada.cells['L']
-    Comprador   = Pagina_Entrada.cells['M']
-    Desenhos2D  = Pagina_Entrada.cells['N']
-    Desenhos3D  = Pagina_Entrada.cells['O']
-    Volume  = Pagina_Entrada.cells['P']
-    Peso  = Pagina_Entrada.cells['P']
-    Entrada    = Pagina_Entrada.cells['Y']
-    Abertura    = Pagina_Entrada.cells['Z']
-    Resposta    = Pagina_Entrada.cells['AA']
+        Pagina_Entrada.cells['B'] = RealizadoList
+        Pagina_Entrada.cells['C'] = ObservacaoList
+        Pagina_Entrada.cells['F'] = ClienteList
+        Pagina_Entrada.cells['G'] = ClientePlantaList
+        Pagina_Entrada.cells['H'] = tipoList
+        Pagina_Entrada.cells['I'] = RFQList
+        Pagina_Entrada.cells['J'] = ItemList
+        Pagina_Entrada.cells['K'] = REVList
+        Pagina_Entrada.cells['L'] = descricaoList
+        Pagina_Entrada.cells['M'] = compradorList
+        Pagina_Entrada.cells['N'] = Desenhos2DList
+        Pagina_Entrada.cells['O'] = Desenhos3DList
+        Pagina_Entrada.cells['P'] = VolumeAnualList
+        Pagina_Entrada.cells['P'] = PesoPecaList
+        Pagina_Entrada.cells['Y'] = DataEntradaList
+        Pagina_Entrada.cells['Z'] = AberturaList
+        Pagina_Entrada.cells['AA'] = DataRespostaList
 
     
         
