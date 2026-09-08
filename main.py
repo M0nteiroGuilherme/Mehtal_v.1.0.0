@@ -5,6 +5,35 @@ import xlwings as xw
 import json
 from openpyxl import load_workbook
 
+def escrevendoArquivo_Jason():
+    Dados_Entrada ={}
+    Dados_Entrada = input("Coloque o caminho: ")
+
+    with open("conf.json", 'w')as arquivo:
+        json.dump(Dados_Entrada,arquivo)
+
+
+def LendoArquivo_Jason():
+    with open("conf.json", "r") as arquivo:
+        Dados_Saida = json.load(arquivo)
+
+        return Dados_Saida
+
+escrevendoArquivo_Jason()
+Caminho = LendoArquivo_Jason()
+
+print(Caminho)
+
+pasta_busca = os.path.expanduser("~")
+nome_arquivo_alvo = Caminho
+
+for root, dirs, files in os.walk(pasta_busca):
+    if nome_arquivo_alvo in files:
+        caminhoAPQP = os.path.join(root, nome_arquivo_alvo)
+        print(f"Arquivo localizado em: {caminhoAPQP}")
+        break  # Para a busca assim que encontrar o primeiro arquivo
+
+
 # ---------------------------------------------------------
 # 1. FUNÇÃO QUE EDITA O EXCEL COPIADO
 # ---------------------------------------------------------
@@ -20,7 +49,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_Cliente, REV_Acc, RFQ_Acc, Projet
     Pagina_Saida['S3']  = RFQ_Acc         # RFQ
     Pagina_Saida['AD3'] = Projeto_Acc     # Projeto
     Pagina_Saida['AK3'] = ClientePlanta_Acc # Cliente Planta
-    Pagina_Saida['F9']  = VolumeAnual_Acc # Volume Anual
+    Pagina_Saida['F9']  = ", ".join(map(str, VolumeAnual_Acc))if isinstance( VolumeAnual_Acc, list) else VolumeAnual_Acc # Volume Anual
     Pagina_Saida['H12'] = DataEntrada_Acc # Data de Entrada
     Pagina_Saida['T12'] = DataResposta_Acc# Data de Resposta
     
@@ -75,49 +104,48 @@ def PegandoDados_PQPMain(APQPSelecionada):
     Reponsavel    = Pagina_Entrada.range('X4:X1000').value # Corrigido espaço
     
     def PegarInf(ColumSelecionada):
-        Linhas = 0
+
         listaLimpa = []
         
         if ColumSelecionada is None:
-            return [], 0
+            return []
             
         for Dado in ColumSelecionada:  
             if Dado is not None and str(Dado).strip() != '':                                                 
-                listaLimpa.append(Dado)        
-                Linhas += 1      
-        return listaLimpa, Linhas
+                listaLimpa.append(Dado)         
+        return listaLimpa
     
-    # PEGANDO AS VARIÁVEIS USANDO O "_" PARA IGNORAR AS LINHAS EXTRAS
-    ObservacaoList, Linhas = PegarInf(Observacao)
-    PNsList, _             = PegarInf(PNs)
-    REVList, _             = PegarInf(REV)
-    RFQList, _             = PegarInf(RFQ)
-    ProjetoList, _         = PegarInf(Projeto)
-    ClientePlantaList, _   = PegarInf(ClientePlanta)
-    Desenhos2DList, _      = PegarInf(Desenhos2D)
-    Desenhos3DList, _      = PegarInf(Desenhos3D)
-    VolumeAnualList, _     = PegarInf(VolumeAnual)
-    DataEntradaList, _     = PegarInf(DataEntrada)
-    DataRespostaList, _    = PegarInf(DataResposta)
-    QTDLista, _            = PegarInf(QTD)
-    ComponentesLista, _    = PegarInf(Componentes)
-    ReponsavelLista, _     = PegarInf(Reponsavel)
-    realizadoLista,_       = PegarInf(realizado)
-    ClienteLista,_         = PegarInf(Cliente)
-    tipoLista,_            = PegarInf(tipo)
-    descricaoLista,_       = PegarInf(descricao)
-    compradorLista,_       = PegarInf(comprador)
-    PesoPecaLista,_        = PegarInf(PesoPeca)
+    # PEGANDO AS VARIÁVEIS USANDO O "_" PARA IGNORAR A EXTRAS
+    ObservacaoList = PegarInf(Observacao)
+    PNsList            = PegarInf(PNs)
+    REVList            = PegarInf(REV)
+    RFQList            = PegarInf(RFQ)
+    ProjetoList        = PegarInf(Projeto)
+    ClientePlantaList  = PegarInf(ClientePlanta)
+    Desenhos2DList     = PegarInf(Desenhos2D)
+    Desenhos3DList     = PegarInf(Desenhos3D)
+    VolumeAnualList    = PegarInf(VolumeAnual)
+    DataEntradaList    = PegarInf(DataEntrada)
+    DataRespostaList   = PegarInf(DataResposta)
+    QTDLista           = PegarInf(QTD)
+    ComponentesLista   = PegarInf(Componentes)
+    ReponsavelLista    = PegarInf(Reponsavel)
+    realizadoLista      = PegarInf(realizado)
+    ClienteLista         = PegarInf(Cliente)
+    tipoLista           = PegarInf(tipo)
+    descricaoLista       = PegarInf(descricao)
+    compradorLista       = PegarInf(comprador)
+    PesoPecaLista        = PegarInf(PesoPeca)
 
     # Removido o .save() pois você só está lendo dados, não editou nada!
     
-    return ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista
+    return ObservacaoList, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista
 
 
 # ---------------------------------------------------------
 # 3. FUNÇÃO QUE CRIA PASTAS E DISTRIBUI ARQUIVOS
 # ---------------------------------------------------------
-def CriandoPastas(PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar):
+def CriandoPastas(PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar):
     
     pastas_Segudarias = ["1-RFQ","2-Desenhos","3-Analise Critica","4-Planilha de Custo","5-CBD","6-Carta Comercial","8-Terceiros","9-Pedidos","10-FII","11-Emails","12-Custo Logistico","13-Obsoleto","14-Modificações"]
     
@@ -145,7 +173,7 @@ def CriandoPastas(PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta
             shutil.copy2('ACC.xlsx', caminho_excel_copiado)
                       
             # Edita o Excel QUE ACABOU DE SER COPIADO usando os dados da lista
-            prenchendoPlanilha_ACC(caminho_excel_copiado, PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i])
+            prenchendoPlanilha_ACC(caminho_excel_copiado, PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i])
             
             print(f"Sucesso: Pasta '{pasta_principal}' criada e planilha preenchida!")
             
@@ -157,46 +185,48 @@ def CriandoPastas(PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta
 # =========================================================
 
 # 1. Puxa os dados do Excel "Ao vivo"
-ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista = PegandoDados_PQPMain('MainAPQP')
+ObservacaoList, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesLista, ReponsavelLista,realizadoLista, ClienteLista, tipoLista, descricaoLista, compradorLista, PesoPecaLista = PegandoDados_PQPMain('MainAPQP')
 
 # 2. Cria as pastas e edita os arquivos copiados usando as listas
-CriandoPastas(PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList)
+CriandoPastas(PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoLista)
 
 def PreenchendoAPQP (APQP_Input):
     print('celula para adidicinoar: ')
     CelulaInico = input()
     #pede a celula para começar a adição ex b15 Ele soma com o I e adicoina apartir dai usando o "PegandoDados_PQPMain"
     
-    ObservacaoList, Linhas, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDLista, ComponentesList, ReponsavelList,RealizadoList, ClienteList, tipoList, descricaoList, compradorList, PesoPecaList = PegandoDados_PQPMain('MainAPQP')
+    ObservacaoList, PNsList, REVList, RFQList, ProjetoList, ClientePlantaList, Desenhos2DList, Desenhos3DList, VolumeAnualList, DataEntradaList, DataRespostaList, QTDList, ComponentesList, ReponsavelList,RealizadoList, ClienteList, tipoList, descricaoList, compradorList, PesoPecaList = PegandoDados_PQPMain('MainAPQP')
     
     Tamanho_list = len(PNsList)
     i = 0
     
-    Plan_Entrada = xw.Book(f'{APQP_Input}.xlsx')
+    Plan_Entrada = xw.Book(str(APQP_Input))
     Pagina_Entrada = Plan_Entrada.sheets['APQP']
-        
     
     while (Tamanho_list > i):    
-    
-        Pagina_Entrada.cells['B'] = RealizadoList
-        Pagina_Entrada.cells['C'] = ObservacaoList
-        Pagina_Entrada.cells['F'] = ClienteList
-        Pagina_Entrada.cells['G'] = ClientePlantaList
-        Pagina_Entrada.cells['H'] = tipoList
-        Pagina_Entrada.cells['I'] = RFQList
-        Pagina_Entrada.cells['J'] = ItemList
-        Pagina_Entrada.cells['K'] = REVList
-        Pagina_Entrada.cells['L'] = descricaoList
-        Pagina_Entrada.cells['M'] = compradorList
-        Pagina_Entrada.cells['N'] = Desenhos2DList
-        Pagina_Entrada.cells['O'] = Desenhos3DList
-        Pagina_Entrada.cells['P'] = VolumeAnualList
-        Pagina_Entrada.cells['P'] = PesoPecaList
-        Pagina_Entrada.cells['Y'] = DataEntradaList
-        Pagina_Entrada.cells['Z'] = AberturaList
-        Pagina_Entrada.cells['AA'] = DataRespostaList
-
-    
         
+        NumeroCelula = int(CelulaInico) + i
+        
+        Pagina_Entrada.range(f'B{NumeroCelula}').value = RealizadoList   [i]
+        Pagina_Entrada.range(f'C{NumeroCelula}').value = ObservacaoList  [i]
+        Pagina_Entrada.range(f'F{NumeroCelula}').value = ClienteList [i]
+        Pagina_Entrada.range(f'G{NumeroCelula}').value = ClientePlantaList   [i]
+        Pagina_Entrada.range(f'H{NumeroCelula}').value = tipoList    [i]
+        Pagina_Entrada.range(f'I{NumeroCelula}').value = RFQList [i]
+        Pagina_Entrada.range(f'J{NumeroCelula}').value = PNsList [i]
+        Pagina_Entrada.range(f'K{NumeroCelula}').value = REVList [i]
+        Pagina_Entrada.range(f'L{NumeroCelula}').value = descricaoList   [i]
+        Pagina_Entrada.range(f'M{NumeroCelula}').value = compradorList   [i]
+        Pagina_Entrada.range(f'N{NumeroCelula}').value = Desenhos2DList  [i]
+        Pagina_Entrada.range(f'O{NumeroCelula}').value = Desenhos3DList  [i]
+        Pagina_Entrada.range(f'P{NumeroCelula}').value = VolumeAnualList [i]
+        Pagina_Entrada.range(f'Q{NumeroCelula}').value = PesoPecaList    [i]
+        Pagina_Entrada.range(f'S{NumeroCelula}').value = QTDList [i]
+        Pagina_Entrada.range(f'T{NumeroCelula}').value = ComponentesList [i]
+        Pagina_Entrada.range(f'Y{NumeroCelula}').value = DataEntradaList [i]
+        Pagina_Entrada.range(f'Z{NumeroCelula}').value = ReponsavelList  [i]
+        Pagina_Entrada.range(f'AA{NumeroCelula}').value  = DataRespostaList   [i]
+        
+        i += 1
     
-    
+PreenchendoAPQP(caminhoAPQP)
