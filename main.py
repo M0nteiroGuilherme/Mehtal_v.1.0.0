@@ -1,32 +1,15 @@
+import re
 import os
 import shutil
 import pandas as pd
 import xlwings as xw
 import json
 from openpyxl import load_workbook
-from datetime import datetime
 
-def formatar_data(valor):
-    """Converts datetime objects or strings like '2026-08-24 00:00:00' to '24/08/2026'."""
-    if valor is None or str(valor).strip() == "":
-        return ""
-    
-    # 1. Se já for do tipo datetime
-    if isinstance(valor, datetime):
-        return valor.strftime('%d/%m/%Y')
-    
-    # 2. Se for String/Texto contendo '00:00:00'
-    texto_data = str(valor).strip()
-    if " " in texto_data:
-        texto_data = texto_data.split(" ")[0]  # Pega apenas '2026-08-24'
-    
-    # 3. Converte de AAAA-MM-DD para DD/MM/AAAA
-    try:
-        data_obj = datetime.strptime(texto_data, '%Y-%m-%d')
-        return data_obj.strftime('%m/%d/%Y')
-    except ValueError:
-        # Retorna o texto original caso a data já esteja em outro formato (ex: 24/08/2026)
-        return str(valor)
+def format(texto):
+    if texto is None:
+        return " "
+    return re.sub(r'[\\/*?:"<>|]', '_', str(texto)).strip()
 
 def formatar_volume(valor):
     """Converte float/int em texto com separador de milhar (ex: 1111.0 -> 1,111)."""
@@ -73,18 +56,14 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
     Pagina_Saida['Z6'] = Nome_Peça_Acc # Descrição peça
     Pagina_Saida['AJ6'] = Comprador_Acc # Comprador
     Pagina_Saida['F9']  = VolumeAnual_Acc # Volume Anual
-    Pagina_Saida['H12'] = DataEntrada_Acc # Data de Entrada
-    Pagina_Saida['T12'] = DataResposta_Acc# Data de Resposta
+    Pagina_Saida['H12'] = str(DataEntrada_Acc).split(' ')[0] # Data de Entrada
+    Pagina_Saida['T12'] = str(DataResposta_Acc).split(' ')[0] # Data de Resposta
     
     if isinstance(VolumeAnual_Acc, list):
         Pagina_Saida['F9'] = ", ".join([formatar_volume(v) for v in VolumeAnual_Acc])
     else:
         Pagina_Saida['F9'] = formatar_volume(VolumeAnual_Acc)
-        
-    # --- TRATAMENTO DAS DATAS ---
-    Pagina_Saida['H12']  = formatar_data(DataEntrada_Acc)
-    Pagina_Saida['T12']  = formatar_data(DataResposta_Acc)
-    
+           
     
     if(TipoItem_Acc == "Novo"):
         
@@ -121,8 +100,6 @@ def PegandoDados_APQP(APQPSelecionada):
     
         
     PN_Methal     = Pagina_Entrada.range (f'A{Inicio_ACC_Criar}:A{Fim_ACC_Criar}').value
-    #realizado     = Pagina_Entrada.range(f'B{Inicio_ACC_Criar}:B{Fim_ACC_Criar}').value     
-    #Observacao    = Pagina_Entrada.range(f'C{Inicio_ACC_Criar}:C{Fim_ACC_Criar}').value  
     Cliente       = Pagina_Entrada.range(f'F{Inicio_ACC_Criar}:F{Fim_ACC_Criar}').value  
     ClientePlanta = Pagina_Entrada.range(f'G{Inicio_ACC_Criar}:G{Fim_ACC_Criar}').value  
     tipo          = Pagina_Entrada.range(f'H{Inicio_ACC_Criar}:H{Fim_ACC_Criar}').value
@@ -131,15 +108,14 @@ def PegandoDados_APQP(APQPSelecionada):
     REV           = Pagina_Entrada.range(f'K{Inicio_ACC_Criar}:K{Fim_ACC_Criar}').value
     descricao     = Pagina_Entrada.range(f'L{Inicio_ACC_Criar}:L{Fim_ACC_Criar}').value
     comprador     = Pagina_Entrada.range(f'M{Inicio_ACC_Criar}:M{Fim_ACC_Criar}').value
-    #Desenhos3D    = Pagina_Entrada.range(f'M{Inicio_ACC_Criar}:M{Fim_ACC_Criar}').value
-    #Desenhos2D    = Pagina_Entrada.range(f"N{Inicio_ACC_Criar}:N{Fim_ACC_Criar}").value
     VolumeAnual   = Pagina_Entrada.range(f'P{Inicio_ACC_Criar}:P{Fim_ACC_Criar}').value   
-    #PesoPeca      = Pagina_Entrada.range(f'P{Inicio_ACC_Criar}:P{Fim_ACC_Criar}').value   
-    #QTD           = Pagina_Entrada.range(f'R{Inicio_ACC_Criar}:R{Fim_ACC_Criar}').value   
-    #Componentes   = Pagina_Entrada.range(f'S{Inicio_ACC_Criar}:S{Fim_ACC_Criar}').value   
-    DataEntrada   = Pagina_Entrada.range(f'Y{Inicio_ACC_Criar}:Y{Fim_ACC_Criar}').value # Corrigido para U
-    DataResposta  = Pagina_Entrada.range(f'AA{Inicio_ACC_Criar}:AA{Fim_ACC_Criar}').value
-    #Reponsavel    = Pagina_Entrada.range(f'X{Inicio_ACC_Criar}:X{Fim_ACC_Criar}').value # Corrigido espaço
+    
+    celulas_entrada = Pagina_Entrada.range(f'Y{Inicio_ACC_Criar}:Y{Fim_ACC_Criar}') 
+    DataEntrada = [cell.api.Text for cell in celulas_entrada]
+    
+    celulas_resposta = Pagina_Entrada.range(f'AA{Inicio_ACC_Criar}:AA{Fim_ACC_Criar}')
+    DataResposta = [cell.api.Text for cell in celulas_resposta]
+
     
     def PegarInf(ColumSelecionada):
                         
@@ -150,30 +126,25 @@ def PegandoDados_APQP(APQPSelecionada):
             
         return [str(Dado).strip() if Dado is not None else "" for Dado in ColumSelecionada]
     
-    # PEGANDO AS VARIÁVEIS USANDO O "_" PARA IGNORAR A EXTRAS
+
     PN_MethalLsit = PegarInf(PN_Methal)
-    #ObservacaoList = PegarInf(Observacao)
-    PNsList            = PegarInf(PNs)
-    REVList            = PegarInf(REV)
+    PNsList_Formatar            = PegarInf(PNs)
+    REVList_Formatar            = PegarInf(REV)
     RFQList            = PegarInf(RFQ)
-    #ProjetoList        = PegarInf(Projeto)
     ClientePlantaList  = PegarInf(ClientePlanta)
-    #Desenhos2DList     = PegarInf(Desenhos2D)
-    #Desenhos3DList     = PegarInf(Desenhos3D)
     VolumeAnualList    = PegarInf(VolumeAnual)
     DataEntradaList    = PegarInf(DataEntrada)
     DataRespostaList   = PegarInf(DataResposta)
-    #TDLista           = PegarInf(QTD)
-    #ComponentesLista   = PegarInf(Componentes)
-    #ReponsavelLista    = PegarInf(Reponsavel)
-    #realizadoLista      = PegarInf(realizado)
     ClienteList         = PegarInf(Cliente)
     tipoList            = PegarInf(tipo)
     descricaoLista       = PegarInf(descricao)
     compradorList       = PegarInf(comprador)
-    #PesoPecaLista        = PegarInf(PesoPeca)
+
 
     ListaFormanta_CompradorACC = []
+    
+    PNsList = [format(pn) for pn in PNsList_Formatar]
+    REVList = [format(rev) for rev in REVList_Formatar]
     
     for i in range(len(PNsList)):
         comp = compradorList[i] if i < len(compradorList) else ""
@@ -199,8 +170,8 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
     
     if len(PNs_Ciar) > 0:
         
-       
         for i in range(len(PNs_Ciar)):
+            
             if not str((PNs_Ciar[i])).strip():
                 continue
             
