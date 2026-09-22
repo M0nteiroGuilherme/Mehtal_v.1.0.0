@@ -85,6 +85,34 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
     Plan_Saida.save(caminho_arquivo)
 
 
+def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, DataRevisao, Volume, DataCotacao, Cliente, Tipo, Peso):
+    Plan_saida = load_workbook(caminho_arquivo)
+    pagina_saida = Plan_saida['Planilha de Custo']
+    
+    pagina_saida['C6'] = PN_cliente
+    pagina_saida['C7'] = PN_MethalLsit
+    pagina_saida['C8'] = Revisao
+    pagina_saida['C9'] = DataRevisao
+    pagina_saida['D9'] = Volume
+    pagina_saida['E7'] = DataCotacao
+    pagina_saida['F9'] = Cliente
+    pagina_saida['G8'] = Tipo
+    pagina_saida['M8'] = Peso
+    
+    
+def prenchendoPlanilha_FINN(caminho_Arquivo,):
+    Plan_saida = load_workbook(caminho_Arquivo)
+    pagina_saida = Plan_saida ['FOR.ENG.03']
+    
+    pagina_saida['C6'] = Cliente
+    pagina_saida['F6'] = Planta_clinete
+    pagina_saida['F6'] = Local_clinete
+    pagina_saida['C7'] = Clinete_Comprador
+    pagina_saida['F7'] = Projeto
+    pagina_saida['F8'] = Descricao
+    
+    
+
 # ---------------------------------------------------------
 # 2. FUNÇÃO QUE LÊ OS DADOS DO MAIN APQP
 # ---------------------------------------------------------
@@ -166,37 +194,60 @@ def PegandoDados_APQP(APQPSelecionada):
 # ---------------------------------------------------------
 def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peça_Criar, Comprador_Criar):
     
-    pastas_Segudarias = ["1-RFQ","2-Desenhos","3-Analise Critica","4-Planilha de Custo","5-CBD","6-Carta Comercial","8-Terceiros","9-Pedidos","10-FII","11-Emails","12-Custo Logistico","13-Obsoleto","14-Modificações"]
+    pastas_Segudarias = [
+        "1-RFQ", "2-Desenhos", "3-Analise Critica", "4-Planilha de Custo",
+        "5-CBD", "6-Carta Comercial", "8-Terceiros", "9-Pedidos",
+        "10-FII", "11-Emails", "12-Custo Logistico", "13-Obsoleto", "14-Modificações"
+    ] 
     
+    # 1. Verifica se há itens na lista (número > 0)
     if len(PNs_Ciar) > 0:
-        
+                   
         for i in range(len(PNs_Ciar)):
-            
-            if not str((PNs_Ciar[i])).strip():
+                
+            # Se o PN estiver em branco, pula para o próximo
+            if not str(PNs_Ciar[i]).strip():
                 continue
+                
+            RFQ_CraiarPasta = str(RFQ_criar[i]).strip()
+            pasta_principal = str(PNs_Ciar[i]).strip()
             
-            pasta_principal = str(PNs_Ciar[i])
+            # Monta o caminho base (com ou sem pasta RFQ)
+            if RFQ_CraiarPasta:
+                caminho_Base = os.path.join(RFQ_CraiarPasta, pasta_principal)
+            else:
+                caminho_Base = pasta_principal
             
-           
-            os.makedirs(pasta_principal, exist_ok=True)
-            
-            
+            # 2. Cria a pasta do PN e as subpastas
+            os.makedirs(caminho_Base, exist_ok=True)
             for nome_subpasta in pastas_Segudarias:
-                caminho_Completo = os.path.join(pasta_principal, nome_subpasta)
+                caminho_Completo = os.path.join(caminho_Base, nome_subpasta)
                 os.makedirs(caminho_Completo, exist_ok=True)
 
-            
+            # 3. Copia e preenche a ACC UMA ÚNICA VEZ (fora do loop das subpastas)
             novo_nome_excel = f'{pasta_principal}_REV.{rev_Craidas[i]}_ACC.xlsx'
-            caminho_excel_copiado = os.path.join(pasta_principal, "3-Analise Critica", novo_nome_excel)
+            caminho_excel_copiado = os.path.join(caminho_Base, "3-Analise Critica", novo_nome_excel)
             
             shutil.copy2('ACC.xlsx', caminho_excel_copiado)
-                      
-            prenchendoPlanilha_ACC(caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i])
+                    
+            prenchendoPlanilha_ACC(
+                caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], 
+                rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], 
+                ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], 
+                DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], 
+                Comprador_Criar[i]
+            )
             
             print(f"Sucesso: Pasta '{pasta_principal}' criada e planilha preenchida!")
-            
+                
     else:
-        print("Ops! A lista de PNs está vazia. Nenhum dado encontrado.") 
+        print("Ops! A lista de PNs está vazia. Nenhum dado encontrado.")
+
+# =========================================================
+# O SEU CÓDIGO PRINCIPAL QUE RODA TUDO:
+# =========================================================
+
+
 
 # =========================================================
 # O SEU CÓDIGO PRINCIPAL QUE RODA TUDO:
