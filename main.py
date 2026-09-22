@@ -86,6 +86,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
 
 
 def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, DataRevisao, Volume, DataCotacao, Cliente, Tipo, Peso):
+    
     Plan_saida = load_workbook(caminho_arquivo)
     pagina_saida = Plan_saida['Planilha de Custo']
     
@@ -100,7 +101,8 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     pagina_saida['M8'] = Peso
     
     
-def prenchendoPlanilha_FINN(caminho_Arquivo,):
+def prenchendoPlanilha_FINN(caminho_Arquivo, Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao):
+    
     Plan_saida = load_workbook(caminho_Arquivo)
     pagina_saida = Plan_saida ['FOR.ENG.03']
     
