@@ -55,7 +55,6 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
     Pagina_Saida['AK3'] = ClientePlanta_Acc # Cliente Planta
     Pagina_Saida['Z6'] = Nome_Peça_Acc # Descrição peça
     Pagina_Saida['AJ6'] = Comprador_Acc # Comprador
-    Pagina_Saida['F9']  = VolumeAnual_Acc # Volume Anual
     Pagina_Saida['H12'] = str(DataEntrada_Acc).split(' ')[0] # Data de Entrada
     Pagina_Saida['T12'] = str(DataResposta_Acc).split(' ')[0] # Data de Resposta
     
@@ -77,7 +76,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
         
                 Pagina_Saida['AA9'] = "X"
     else:
-            Pagina_Saida['V10'] = TipoItem_Acc
+            Pagina_Saida['V10'] = f"{TipoItem_Acc}"
             Pagina_Saida['AA10'] = "X"
                 
                         
@@ -85,7 +84,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
     Plan_Saida.save(caminho_arquivo)
 
 
-def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, DataRevisao, Volume, DataCotacao, Cliente, Tipo, Peso):
+def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, Volume, Cliente, Tipo, Peso):
     
     Plan_saida = load_workbook(caminho_arquivo)
     pagina_saida = Plan_saida['Planilha de Custo']
@@ -93,39 +92,68 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     pagina_saida['C6'] = PN_cliente
     pagina_saida['C7'] = PN_MethalLsit
     pagina_saida['C8'] = Revisao
-    pagina_saida['C9'] = DataRevisao
-    pagina_saida['D9'] = Volume
-    pagina_saida['E7'] = DataCotacao
+    #pagina_saida['C9'] = DataRevisao
+    #pagina_saida['E7'] = DataCotacao
     pagina_saida['F9'] = Cliente
     pagina_saida['G8'] = Tipo
-    pagina_saida['M8'] = Peso
+    pagina_saida['M8'] = f"{Peso}"
+    
+    if isinstance(Volume, list):
+        pagina_saida['F9'] = ", ".join([formatar_volume(v) for v in Volume])
+    else:
+       pagina_saida['F9'] = formatar_volume(Volume)
+    
+    Plan_saida.save(caminho_arquivo)
     
     
-def prenchendoPlanilha_FINN(caminho_Arquivo, Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao):
+def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo):
     
     Plan_saida = load_workbook(caminho_Arquivo)
     pagina_saida = Plan_saida ['FOR.ENG.03']
     
-    pagina_saida['C6'] = Cliente
-    pagina_saida['F6'] = Planta_clinete
-    pagina_saida['F6'] = Local_clinete
-    pagina_saida['C7'] = Clinete_Comprador
-    pagina_saida['F7'] = Projeto
-    pagina_saida['F8'] = Descricao
+    pagina_saida['C6'] = Cliente         # CORRIGIDO: C6 é a célula inicial mesclada de Cliente (era D6)
+    pagina_saida['H6'] = Planta_clinete  # Célula ao lado do rótulo "Planta:" (ou H6 dependendo da mesclagem)
+    pagina_saida['K6'] = Local_clinete   # Célula ao lado de "Localização:"
+    
+    pagina_saida['C7'] = Clinete_Comprador  # Célula mesclada do Comprador
+    pagina_saida['H7'] = Projeto           # CORRIGIDO: H7 é onde fica o campo Projeto (onde o cursor verde está)
+    
+    pagina_saida['H8'] = Descricao
+    pagina_saida['E9'] = PNsList          # Código do Cliente/Methal
+    
+    if (Tipo == "Novo"):
+        
+        pagina_saida['C5'] = "X"
+        
+    elif(Tipo == "Modificação"):
+        
+        pagina_saida['F5'] = "X"
+        
+    elif(Tipo == "Substitução"):
+        
+        pagina_saida['I5'] = "X"
+        
+    else:
+
+        pagina_saida['H5'] = f'{Tipo}'
+        pagina_saida['I5'] = "X"
+        
+    Plan_saida.save(caminho_Arquivo)
     
     
 
 # ---------------------------------------------------------
 # 2. FUNÇÃO QUE LÊ OS DADOS DO MAIN APQP
 # ---------------------------------------------------------
+
 def PegandoDados_APQP(APQPSelecionada):
     
     Plan_Entrada = xw.Book(f'{APQPSelecionada}.xlsx')
     Pagina_Entrada = Plan_Entrada.sheets['APQP']
     
-    Inicio_ACC_Criar = input("coloque a coluna que iniciara As ACC's: ")
+    Inicio_ACC_Criar = input("coloque a linha que iniciara As ACC's: ")
            
-    Fim_ACC_Criar = input("Colque a ultima colum: ")
+    Fim_ACC_Criar = input("Colque a ultima linha: ")
     
     
         
@@ -139,6 +167,7 @@ def PegandoDados_APQP(APQPSelecionada):
     descricao     = Pagina_Entrada.range(f'L{Inicio_ACC_Criar}:L{Fim_ACC_Criar}').value
     comprador     = Pagina_Entrada.range(f'M{Inicio_ACC_Criar}:M{Fim_ACC_Criar}').value
     VolumeAnual   = Pagina_Entrada.range(f'P{Inicio_ACC_Criar}:P{Fim_ACC_Criar}').value   
+    Peso          = Pagina_Entrada.range(f'Q{Inicio_ACC_Criar}:Q{Fim_ACC_Criar}').value   
     
     celulas_entrada = Pagina_Entrada.range(f'Y{Inicio_ACC_Criar}:Y{Fim_ACC_Criar}') 
     DataEntrada = [cell.api.Text for cell in celulas_entrada]
@@ -157,18 +186,19 @@ def PegandoDados_APQP(APQPSelecionada):
         return [str(Dado).strip() if Dado is not None else "" for Dado in ColumSelecionada]
     
 
-    PN_MethalLsit = PegarInf(PN_Methal)
-    PNsList_Formatar            = PegarInf(PNs)
-    REVList_Formatar            = PegarInf(REV)
-    RFQList            = PegarInf(RFQ)
-    ClientePlantaList  = PegarInf(ClientePlanta)
-    VolumeAnualList    = PegarInf(VolumeAnual)
-    DataEntradaList    = PegarInf(DataEntrada)
-    DataRespostaList   = PegarInf(DataResposta)
+    PN_MethalLsit       = PegarInf(PN_Methal)
+    PNsList_Formatar    = PegarInf(PNs)
+    REVList_Formatar    = PegarInf(REV)
+    RFQList             = PegarInf(RFQ)
+    ClientePlantaList   = PegarInf(ClientePlanta)
+    VolumeAnualList     = PegarInf(VolumeAnual)
+    DataEntradaList     = PegarInf(DataEntrada)
+    DataRespostaList    = PegarInf(DataResposta)
     ClienteList         = PegarInf(Cliente)
     tipoList            = PegarInf(tipo)
-    descricaoLista       = PegarInf(descricao)
+    descricaoLista      = PegarInf(descricao)
     compradorList       = PegarInf(comprador)
+    PesoList            = PegarInf(Peso)
 
 
     ListaFormanta_CompradorACC = []
@@ -189,12 +219,12 @@ def PegandoDados_APQP(APQPSelecionada):
     
     # Removido o .save() pois você só está lendo dados, não editou nada!
     
-    return PN_MethalLsit, PNsList, REVList, RFQList,  ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC 
+    return PN_MethalLsit, PNsList, REVList, RFQList,  ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC , compradorList, ClienteList, PesoList
 
 # ---------------------------------------------------------
 # 3. FUNÇÃO QUE CRIA PASTAS E DISTRIBUI ARQUIVOS
 # ---------------------------------------------------------
-def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peça_Criar, Comprador_Criar):
+def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peça_Criar, Comprador_Criar, ClienteList_cria, compradorList_criar, peso_criar):
     
     pastas_Segudarias = [
         "1-RFQ", "2-Desenhos", "3-Analise Critica", "4-Planilha de Custo",
@@ -239,6 +269,21 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
                 DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], 
                 Comprador_Criar[i]
             )
+                                   
+            #Criando Fiin
+            Novo_Fiin = f'{pasta_principal}_FIIN.xlsx'
+            Fiin_copiada = os.path.join(caminho_Base,"10-FII", Novo_Fiin)
+            
+            shutil.copy2("FIIN.xlsx", Fiin_copiada)
+            
+            prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i])
+            
+            Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsx'
+            PlanilhaCusto_copiada = os.path.join(caminho_Base, "12-Custo Logistico", Novo_PlanilhaCusto)
+            
+            shutil.copy2("Planilha_Custo.xlsm", PlanilhaCusto_copiada)
+            
+            prenchendoPlanilha_Custo(PlanilhaCusto_copiada, PNs_Ciar[i], PN_MethalLsit_Criar[i], rev_Craidas[i], VolumeAnual_criar[i], compradorList_criar[i], TipoItem_criar[i], peso_criar[i])
             
             print(f"Sucesso: Pasta '{pasta_principal}' criada e planilha preenchida!")
                 
@@ -278,23 +323,12 @@ while Play == 0:
             print("⚠️ Erro: Nenhum caminho configurado no conf.json. Use a opção [1] primeiro.")
             continue
             
-        PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC = PegandoDados_APQP(Caminho)
+        PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList = PegandoDados_APQP(Caminho)
 
         CriandoPastas(
-            PN_MethalLsit, 
-            PNsList, 
-            REVList, 
-            RFQList, 
-            RFQList, 
-            ClientePlantaList, 
-            VolumeAnualList, 
-            DataEntradaList, 
-            DataRespostaList, 
-            tipoList, 
-            descricaoLista, 
-            ListaFormanta_CompradorACC
+            PN_MethalLsit, PNsList, REVList, RFQList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList
         )
 
     elif opcao_menu == "X":
-        play = 1
+        Play = 1
         print("Programa encerrado com sucesso!")
