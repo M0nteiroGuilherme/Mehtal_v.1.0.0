@@ -106,7 +106,7 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     Plan_saida.save(caminho_arquivo)
     
     
-def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo):
+def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo, Rev):
     
     Plan_saida = load_workbook(caminho_Arquivo)
     pagina_saida = Plan_saida ['FOR.ENG.03']
@@ -119,6 +119,7 @@ def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, L
     pagina_saida['H7'] = Projeto           # CORRIGIDO: H7 é onde fica o campo Projeto (onde o cursor verde está)
     
     pagina_saida['H8'] = Descricao
+    pagina_saida['H9'] = Rev
     pagina_saida['E9'] = PNsList          # Código do Cliente/Methal
     
     if (Tipo == "Novo"):
@@ -229,7 +230,7 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
     pastas_Segudarias = [
         "1-RFQ", "2-Desenhos", "3-Analise Critica", "4-Planilha de Custo",
         "5-CBD", "6-Carta Comercial", "8-Terceiros", "9-Pedidos",
-        "10-FII", "11-Emails", "12-Custo Logistico", "13-Obsoleto", "14-Modificações"
+        "10-FIIN", "11-Emails", "12-Custo Logistico", "13-Obsoleto", "14-Modificações"
     ] 
     
     # 1. Verifica se há itens na lista (número > 0)
@@ -263,27 +264,23 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
             shutil.copy2('ACC.xlsx', caminho_excel_copiado)
                     
             prenchendoPlanilha_ACC(
-                caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], 
-                rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], 
-                ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], 
-                DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], 
-                Comprador_Criar[i]
+                caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i]
             )
                                    
             #Criando Fiin
             Novo_Fiin = f'{pasta_principal}_FIIN.xlsx'
-            Fiin_copiada = os.path.join(caminho_Base,"10-FII", Novo_Fiin)
+            Fiin_copiada = os.path.join(caminho_Base,"10-FIIN", Novo_Fiin)
             
             shutil.copy2("FIIN.xlsx", Fiin_copiada)
             
             prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i])
             
             Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsx'
-            PlanilhaCusto_copiada = os.path.join(caminho_Base, "12-Custo Logistico", Novo_PlanilhaCusto)
+            PlanilhaCusto_copiada = os.path.join(caminho_Base, "4-Planilha de Custo", Novo_PlanilhaCusto)
             
             shutil.copy2("Planilha_Custo.xlsm", PlanilhaCusto_copiada)
             
-            prenchendoPlanilha_Custo(PlanilhaCusto_copiada, PNs_Ciar[i], PN_MethalLsit_Criar[i], rev_Craidas[i], VolumeAnual_criar[i], compradorList_criar[i], TipoItem_criar[i], peso_criar[i])
+            prenchendoPlanilha_Custo(PlanilhaCusto_copiada, PNs_Ciar[i], PN_MethalLsit_Criar[i], rev_Craidas[i], VolumeAnual_criar[i], compradorList_criar[i], TipoItem_criar[i], peso_criar[i], rev_Craidas[i])
             
             print(f"Sucesso: Pasta '{pasta_principal}' criada e planilha preenchida!")
                 
