@@ -106,7 +106,7 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     Plan_saida.save(caminho_arquivo)
     
     
-def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo, Rev, PNsListInterno):
+def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo, Rev, PNsListInterno, Volume):
     
     Plan_saida = load_workbook(caminho_Arquivo)
     pagina_saida = Plan_saida ['FOR.ENG.03']
@@ -122,6 +122,12 @@ def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList ,Cliente, Planta_clinete, L
     pagina_saida['H9'] = Rev
     pagina_saida['E9'] = PNsList          # Código do Cliente
     pagina_saida['E8'] = PNsListInterno   # Código do Methal
+    
+    if isinstance(Volume, list):
+        pagina_saida['C15'] = ", ".join([formatar_volume(v) for v in Volume])
+    else:
+        pagina_saida['C15'] = formatar_volume(Volume)
+    
     
     if (Tipo == "Novo"):
         
@@ -272,16 +278,8 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
                     prenchendoPlanilha_ACC(
                         caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i]
                     )
-                                        
-                    #Criando Fiin
-                    Novo_Fiin = f'{pasta_principal}_FIIN.xlsx'
-                    Fiin_copiada = os.path.join(caminho_Base,"10-FIIN", Novo_Fiin)
                     
-                    shutil.copy2("FIIN.xlsx", Fiin_copiada)
-                    
-                    prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i], rev_Craidas[i], PN_MethalLsit_Criar[i])
-                    
-                    Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsx'
+                    Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsm'
                     PlanilhaCusto_copiada = os.path.join(caminho_Base, "4-Planilha de Custo", Novo_PlanilhaCusto)
                     
                     shutil.copy2("Planilha_Custo.xlsm", PlanilhaCusto_copiada)
@@ -296,7 +294,33 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
 # =========================================================
 # O SEU CÓDIGO PRINCIPAL QUE RODA TUDO:
 # =========================================================
+def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar,  ClientePlanta_criar, VolumeAnual_criar,  TipoItem_criar, Nome_Peça_Criar,  ClienteList_cria, compradorList_criar,  Declinar_crirar):
 
+     if len(PNs_Ciar) > 0:
+                        
+        for i in range(len(PNs_Ciar)):
+                
+            if  Declinar_crirar[i] != 1:
+                
+                # Se o PN estiver em branco, pula para o próximo
+                if not str(PNs_Ciar[i]).strip():
+                    continue              
+                    
+                RFQ_CraiarPasta = str(RFQ_criar[i]).strip()
+                pasta_principal = str(PNs_Ciar[i]).strip()
+                
+                if RFQ_CraiarPasta:
+                    caminho_Base = os.path.join(RFQ_CraiarPasta, pasta_principal)
+                else:
+                    caminho_Base = pasta_principal
+                
+                #Criando Fiin
+                Novo_Fiin = f'{pasta_principal}_FIIN.xlsx'
+                Fiin_copiada = os.path.join(caminho_Base, Novo_Fiin)
+                
+                shutil.copy2("FIIN.xlsx", Fiin_copiada)
+                                
+                prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i], rev_Craidas[i], PN_MethalLsit_Criar[i],VolumeAnual_criar[i])    
 
 
 # =========================================================
@@ -312,6 +336,7 @@ while Play == 0:
     print("\nO que gostaria?")
     print("[1] Mudar APQP")
     print("[2] Criar ACC")
+    print("[3] Criar FIIN")
     print("[X] SAIR")
     
     opcao_menu = input("_> ").strip().upper()  # Trata espaços e converte para maiúsculo
@@ -331,7 +356,12 @@ while Play == 0:
         CriandoPastas(
             PN_MethalLsit, PNsList, REVList, RFQList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar
         )
+    elif opcao_menu == "3":
+        
+        PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, TipoItemList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(Caminho)
 
+        CriandoFIIN(PN_MethalLsit, PNsList, REVList, RFQList,  ClientePlantaList, VolumeAnualList,  TipoItemList, descricaoLista,  ClienteList, compradorList,  Declinar)
+        
     elif opcao_menu == "X":
         Play = 1
         print("Programa encerrado com sucesso!")
