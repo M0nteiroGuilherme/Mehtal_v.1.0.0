@@ -4,6 +4,7 @@ import shutil
 import pandas as pd
 import xlwings as xw
 import json
+import time
 from openpyxl import load_workbook
 
 def format(texto):
@@ -86,7 +87,9 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
 
 def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, Volume, Cliente, Tipo, Peso):
     
-    Plan_saida = load_workbook(caminho_arquivo)
+    time.sleep(0.5)
+    
+    Plan_saida = load_workbook(caminho_arquivo, keep_vba=True)
     pagina_saida = Plan_saida['Planilha de Custo']
     
     pagina_saida['C6'] = PN_cliente
@@ -279,7 +282,7 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
                         caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i]
                     )
                     
-                    Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsm'
+                    Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsm '
                     PlanilhaCusto_copiada = os.path.join(caminho_Base, "4-Planilha de Custo", Novo_PlanilhaCusto)
                     
                     shutil.copy2("Planilha_Custo.xlsm", PlanilhaCusto_copiada)
@@ -294,41 +297,48 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
 # =========================================================
 # O SEU CÓDIGO PRINCIPAL QUE RODA TUDO:
 # =========================================================
+
 def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar,  ClientePlanta_criar, VolumeAnual_criar,  TipoItem_criar, Nome_Peça_Criar,  ClienteList_cria, compradorList_criar,  Declinar_crirar):
 
-     if len(PNs_Ciar) > 0:
-                        
+    def limpar_nome_arquivo(nome: str) -> str:
+        return re.sub(r'[\\/*?:"<>|]', "_", str(nome))
+
+    # 2. Caminho absoluto do modelo FIIN.xlsx baseado na pasta do script
+    BASE_DIR = Path(__file__).resolve().parent
+    modelo_fiin = BASE_DIR / "FIIN.xlsx"  # Se o modelo tiver macros/VBA, mude para "FIIN.xlsm"
+
+    if len(PNs_Ciar) > 0:
         for i in range(len(PNs_Ciar)):
-                
-            if  Declinar_crirar[i] != 1:
-                
-                # Se o PN estiver em branco, pula para o próximo
-                if not str(PNs_Ciar[i]).strip():
-                    continue              
-                    
-                RFQ_CraiarPasta = str(RFQ_criar[i]).strip()
-                pasta_principal = str(PNs_Ciar[i]).strip()
-                
-                if RFQ_CraiarPasta:
-                    caminho_Base = os.path.join(RFQ_CraiarPasta, pasta_principal)
-                else:
-                    caminho_Base = pasta_principal
-                
-                #Criando Fiin
-                Novo_Fiin = f'{pasta_principal}_FIIN.xlsx'
-                Fiin_copiada = os.path.join(caminho_Base, Novo_Fiin)
-                
-                shutil.copy2("FIIN.xlsx", Fiin_copiada)
-                                
-                prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i], rev_Craidas[i], PN_MethalLsit_Criar[i],VolumeAnual_criar[i])    
+            
+            # Pula se for para declinar
+            if Declinar_crirar[i] == 1:
+                continue
+
+            pn_raw = str(PNs_Ciar[i]).strip()
+
+            # Se o PN estiver em branco, pula para o próximo
+            if not pn_raw:
+                continue
+
+            # 3. Limpa o nome para evitar caracteres proibidos no Windows
+            pasta_principal = limpar_nome_arquivo(pn_raw)
+
+            # 4. Usa a variável correta e adiciona exist_ok=True para evitar erro se a pasta já existir
+            os.makedirs(pasta_principal, exist_ok=True)
+
+            # Criando Fiin
+            Novo_Fiin = f"{pasta_principal}_FIIN.xlsx"
+            Fiin_copiada = os.path.join(pasta_principal, Novo_Fiin)
+
+            # Copia o modelo para a nova pasta
+            shutil.copy2(modelo_fiin, Fiin_copiada)
+                                    
+            prenchendoPlanilha_FINN(Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i], rev_Craidas[i], PN_MethalLsit_Criar[i],VolumeAnual_criar[i])    
 
 
 # =========================================================
 # O SEU CÓDIGO PRINCIPAL QUE RODA TUDO:
 # =========================================================
-
-
-
 
 Play = 0 
 
@@ -357,6 +367,13 @@ while Play == 0:
             PN_MethalLsit, PNsList, REVList, RFQList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar
         )
     elif opcao_menu == "3":
+        
+        Caminho = LendoArquivo_Jason()
+        
+        if not Caminho:
+            print("⚠️ Erro: Nenhum caminho configurado no conf.json. Use a opção [1] primeiro.")
+            continue
+        
         
         PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, TipoItemList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(Caminho)
 
