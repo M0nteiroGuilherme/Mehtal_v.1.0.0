@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('ACC.xlsx', '.'), ('Planilha_Custo.xlsm', '.'), ('FIIN.xlsx', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
