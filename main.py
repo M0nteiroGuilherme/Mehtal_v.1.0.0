@@ -31,6 +31,9 @@ MODELO_ACC = get_resource_path("ACC.xlsx")
 MODELO_CUSTO = get_resource_path("Planilha_Custo.xlsm")
 MODELO_FIIN = get_resource_path("FIIN.xlsx")
 
+# Variável global para manter a APQP ativa em memória
+APQP_PATH_ATUAL: Path | None = None
+
 
 def format(texto):
     if texto is None:
@@ -40,25 +43,21 @@ def format(texto):
 def formatar_volume(valor):
     if valor is None or str(valor).strip() == "":
         return ""
-    # Se for lista, pega primeiro ou junta
     if isinstance(valor, list):
         if len(valor) == 0:
             return ""
-        # Se for lista de listas (caso do xlwings)
         flat = []
         for v in valor:
             if isinstance(v, list):
                 flat.extend(v)
             else:
                 flat.append(v)
-        # filtra vazios
         flat = [x for x in flat if x not in (None, "")]
         if len(flat) == 0:
             return ""
         if len(flat) == 1:
             valor = flat[0]
         else:
-            # junta vários volumes
             partes = []
             for v in flat:
                 try:
@@ -73,7 +72,7 @@ def formatar_volume(valor):
         return str(valor).strip()
 
 # =========================================================
-# BUSCA INTELIGENTE DA APQP PELO NOME
+# BUSCA INTELIGENTE DA APQP PELO NOME (EXECUTADA APENAS 1 VEZ)
 # =========================================================
 def encontrar_apqp_por_nome(nome_apqp: str) -> Path | None:
     nome_limpo = nome_apqp.strip()
@@ -81,11 +80,12 @@ def encontrar_apqp_por_nome(nome_apqp: str) -> Path | None:
         return None
     p_teste = Path(nome_limpo)
     if p_teste.exists() and p_teste.is_file():
-        return p_teste
+        return p_teste.resolve()
     if Path(str(p_teste) + ".xlsx").exists():
-        return Path(str(p_teste) + ".xlsx")
+        return Path(str(p_teste) + ".xlsx").resolve()
+    
     nome_arquivo = nome_limpo if nome_limpo.lower().endswith('.xlsx') else f"{nome_limpo}.xlsx"
-    print(f"\n🔍 Procurando por '{nome_arquivo}'...")
+    print(f"\n🔍 A procurar por '{nome_arquivo}' no sistema...")
 
     pastas_busca = [APP_DIR]
     try:
@@ -108,19 +108,19 @@ def encontrar_apqp_por_nome(nome_apqp: str) -> Path | None:
                 if any(ign in arquivo.parts for ign in IGNORAR):
                     continue
                 if arquivo.is_file():
-                    return arquivo
+                    return arquivo.resolve()
         except:
             pass
         return None
 
     for pasta in pastas_busca:
-        print(f"  > Verificando em: {pasta}")
+        print(f"  > A verificar em: {pasta}")
         resultado = busca_rapida(pasta)
         if resultado:
             print(f"✅ Encontrado em: {resultado}")
             return resultado
 
-    print("  > Varrendo C: e D:...")
+    print("  > A varrer unidades C: e D:...")
     for letra in ["C:", "D:"]:
         drive = Path(letra + "/")
         if not drive.exists():
@@ -130,46 +130,59 @@ def encontrar_apqp_por_nome(nome_apqp: str) -> Path | None:
                 dirs[:] = [d for d in dirs if d not in IGNORAR and not d.startswith('$')]
                 lower_files = {f.lower(): f for f in files}
                 if nome_arquivo.lower() in lower_files:
-                    achado = Path(root) / lower_files[nome_arquivo.lower()]
+                    achado = (Path(root) / lower_files[nome_arquivo.lower()]).resolve()
                     print(f"✅ Encontrado em: {achado}")
                     return achado
         except:
             continue
-    print(f"❌ '{nome_arquivo}' não encontrado.")
+            
+    print(f"❌ '{nome_arquivo}' não foi encontrado.")
     return None
 
 
-def escrevendoArquivo_Jason():
-    Dados_Entrada = input("Coloque o NOME da planilha APQP (ex: APQP_Projeto_X): ").strip()
-    nome_limpo = Path(Dados_Entrada).stem if Dados_Entrada.lower().endswith('.xlsx') else Path(Dados_Entrada).name
-    if "\\" in Dados_Entrada or "/" in Dados_Entrada:
-        nome_limpo = Path(Dados_Entrada).stem
-    dados = {"apqp_nome": nome_limpo}
-    with open(CONF_PATH, 'w', encoding='utf-8') as arquivo:
-        json.dump(dados, arquivo, indent=4, ensure_ascii=False)
-    print(f"💾 Salvo em {CONF_PATH}: {dados}")
+# =========================================================
+# GESTÃO DE CONFIGURAÇÃO E CARREGAMENTO
+# =========================================================
+def obter_ou_definir_apqp(forcar_mudanca=False) -> Path | None:
+    global APQP_PATH_ATUAL
 
+    # Se já temos em memória e não for para mudar, reutiliza direto
+    if not forcar_mudanca and APQP_PATH_ATUAL and APQP_PATH_ATUAL.exists():
+        return APQP_PATH_ATUAL
 
-def LendoArquivo_Jason():
-    if not CONF_PATH.exists():
-        return None
-    try:
-        with open(CONF_PATH, "r", encoding='utf-8') as arquivo:
-            conteudo = json.load(arquivo)
-            if isinstance(conteudo, str):
-                return Path(conteudo).stem
-            if isinstance(conteudo, dict):
-                return conteudo.get("apqp_nome")
-            return conteudo
-    except Exception as e:
-        print(f"Erro ao ler conf.json: {e}")
+    # Tenta carregar o caminho do arquivo de configuração
+    if not forcar_mudanca and CONF_PATH.exists():
+        try:
+            with open(CONF_PATH, "r", encoding='utf-8') as arquivo:
+                conteudo = json.load(arquivo)
+                caminho_str = conteudo.get("apqp_path") if isinstance(conteudo, dict) else conteudo
+                if caminho_str:
+                    caminho = Path(caminho_str)
+                    if caminho.exists():
+                        APQP_PATH_ATUAL = caminho
+                        return APQP_PATH_ATUAL
+        except Exception as e:
+            print(f"⚠️ Erro ao ler conf.json: {e}")
+
+    # Se não existe ou o utilizador pediu para mudar
+    dados_entrada = input("Coloque o NOME ou CAMINHO da planilha APQP (ex: APQP_Projeto_X): ").strip()
+    caminho_encontrado = encontrar_apqp_por_nome(dados_entrada)
+
+    if caminho_encontrado:
+        APQP_PATH_ATUAL = caminho_encontrado
+        with open(CONF_PATH, 'w', encoding='utf-8') as arquivo:
+            json.dump({"apqp_path": str(caminho_encontrado)}, arquivo, indent=4, ensure_ascii=False)
+        print(f"💾 APQP guardada em {CONF_PATH}: {caminho_encontrado.name}")
+        return APQP_PATH_ATUAL
+    else:
+        print("❌ Não foi possível carregar a APQP.")
         return None
 
 
 # ---------------------------------------------------------
-# 1. FUNÇÕES QUE EDITAM AS PLANILHAS (CORRIGIDAS)
+# 1. FUNÇÕES QUE EDITAM AS PLANILHAS
 # ---------------------------------------------------------
-def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc, RFQ_Acc, Projeto_Acc, ClientePlanta_Acc, VolumeAnual_Acc, DataEntrada_Acc, DataResposta_Acc, TipoItem_Acc, Nome_Peça_Acc, Comprador_Acc):
+def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc, RFQ_Acc, Projeto_Acc, ClientePlanta_Acc, VolumeAnual_Acc, DataEntrada_Acc, DataResposta_Acc, TipoItem_Acc, Nome_Peca_Acc, Comprador_Acc):
     Plan_Saida = load_workbook(caminho_arquivo)
     Pagina_Saida = Plan_Saida['Plan1']
     Pagina_Saida['F3'] = str(PN_MTH_ACC) if PN_MTH_ACC else ""
@@ -178,7 +191,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
     Pagina_Saida['S3'] = str(RFQ_Acc) if RFQ_Acc else ""
     Pagina_Saida['AD3'] = str(Projeto_Acc) if Projeto_Acc else ""
     Pagina_Saida['AK3'] = str(ClientePlanta_Acc) if ClientePlanta_Acc else ""
-    Pagina_Saida['Z6'] = str(Nome_Peça_Acc) if Nome_Peça_Acc else ""
+    Pagina_Saida['Z6'] = str(Nome_Peca_Acc) if Nome_Peca_Acc else ""
     Pagina_Saida['AJ6'] = str(Comprador_Acc) if Comprador_Acc else ""
     Pagina_Saida['H12'] = str(DataEntrada_Acc).split(' ')[0] if DataEntrada_Acc else ""
     Pagina_Saida['T12'] = str(DataResposta_Acc).split(' ')[0] if DataResposta_Acc else ""
@@ -203,7 +216,7 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
 
 
 def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, Volume, Cliente, Tipo, Peso):
-    time.sleep(0.2)
+    time.sleep(0.1)
     Plan_saida = load_workbook(caminho_arquivo, keep_vba=True)
     pagina_saida = Plan_saida['Planilha de Custo']
     pagina_saida['C6'].value = str(PN_cliente) if PN_cliente else ""
@@ -213,28 +226,22 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     pagina_saida['G8'].value = str(Tipo) if Tipo else ""
     pagina_saida['M8'].value = str(Peso) if Peso else ""
     
-    # Volume já formatado
     if isinstance(Volume, list):
         pagina_saida['F9'].value = ", ".join([formatar_volume(v) for v in Volume])
     else:
-        # Se já for string formatada, mantém
         pagina_saida['F9'].value = formatar_volume(Volume)
     
     Plan_saida.save(caminho_arquivo)
 
 
 def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList, Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo, Rev, PNsListInterno, Volume):
-    # CORREÇÃO DO ERRO: tratamento robusto
     Plan_saida = load_workbook(caminho_Arquivo)
     
-    # Verifica se aba existe
     if 'FOR.ENG.03' in Plan_saida.sheetnames:
         pagina_saida = Plan_saida['FOR.ENG.03']
     else:
-        print(f"⚠️ Aba FOR.ENG.03 não encontrada. Abas disponíveis: {Plan_saida.sheetnames}. Usando aba ativa.")
         pagina_saida = Plan_saida.active
     
-    # Escreve sempre como string para evitar erro do openpyxl
     pagina_saida['C6'].value = str(Cliente) if Cliente else ""
     pagina_saida['H6'].value = str(Planta_clinete) if Planta_clinete else ""
     pagina_saida['K6'].value = str(Local_clinete) if Local_clinete else ""
@@ -245,19 +252,17 @@ def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList, Cliente, Planta_clinete, L
     pagina_saida['E9'].value = str(PNsList) if PNsList else ""
     pagina_saida['E8'].value = str(PNsListInterno) if PNsListInterno else ""
     
-    # VOLUME - AQUI ESTAVA O ERRO
     try:
         vol_str = formatar_volume(Volume)
         pagina_saida['D15'].value = str(vol_str)
     except Exception as e:
-        print(f"⚠️ Erro ao escrever volume {Volume}: {e}. Escrevendo como texto.")
         pagina_saida['D15'].value = str(Volume)
     
     if Tipo == "Novo":
         pagina_saida['C5'].value = "X"
     elif Tipo == "Modificação":
         pagina_saida['F5'].value = "X"
-    elif Tipo == "Substitução":
+    elif Tipo == "Substituição":
         pagina_saida['I5'].value = "X"
     else:
         if Tipo:
@@ -268,38 +273,45 @@ def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList, Cliente, Planta_clinete, L
 
 
 # ---------------------------------------------------------
-# 2. LÊ DADOS DA APQP
+# 2. LÊ DADOS DA APQP (DIRETO DO CAMINHO VALIDAD0)
 # ---------------------------------------------------------
-def PegandoDados_APQP(APQPSelecionada):
-    caminho_apqp = encontrar_apqp_por_nome(APQPSelecionada)
+def PegandoDados_APQP(caminho_apqp: Path):
     if not caminho_apqp or not caminho_apqp.exists():
-        raise FileNotFoundError(f"Não achei a APQP '{APQPSelecionada}.xlsx' no PC.")
+        raise FileNotFoundError(f"Arquivo APQP não encontrado: {caminho_apqp}")
     
-    print(f"📂 Usando APQP: {caminho_apqp}")
-    Plan_Entrada = xw.Book(str(caminho_apqp))
-    Pagina_Entrada = Plan_Entrada.sheets['APQP']
+    print(f"📂 Leitura da APQP: {caminho_apqp.name}")
     
     Inicio_ACC_Criar = input("Coloque a linha que iniciará as ACC's: ").strip()
     Fim_ACC_Criar = input("Coloque a última linha: ").strip()
     
-    PN_Methal     = Pagina_Entrada.range(f'A{Inicio_ACC_Criar}:A{Fim_ACC_Criar}').value
-    Cliente       = Pagina_Entrada.range(f'F{Inicio_ACC_Criar}:F{Fim_ACC_Criar}').value  
-    ClientePlanta = Pagina_Entrada.range(f'G{Inicio_ACC_Criar}:G{Fim_ACC_Criar}').value  
-    tipo          = Pagina_Entrada.range(f'H{Inicio_ACC_Criar}:H{Fim_ACC_Criar}').value
-    RFQ           = Pagina_Entrada.range(f'I{Inicio_ACC_Criar}:I{Fim_ACC_Criar}').value    
-    PNs           = Pagina_Entrada.range(f'J{Inicio_ACC_Criar}:J{Fim_ACC_Criar}').value   
-    REV           = Pagina_Entrada.range(f'K{Inicio_ACC_Criar}:K{Fim_ACC_Criar}').value
-    descricao     = Pagina_Entrada.range(f'L{Inicio_ACC_Criar}:L{Fim_ACC_Criar}').value
-    comprador     = Pagina_Entrada.range(f'M{Inicio_ACC_Criar}:M{Fim_ACC_Criar}').value
-    VolumeAnual   = Pagina_Entrada.range(f'P{Inicio_ACC_Criar}:P{Fim_ACC_Criar}').value   
-    Peso          = Pagina_Entrada.range(f'Q{Inicio_ACC_Criar}:Q{Fim_ACC_Criar}').value   
-    Declinar      = Pagina_Entrada.range(f'V{Inicio_ACC_Criar}:V{Fim_ACC_Criar}').value
-    
-    celulas_entrada = Pagina_Entrada.range(f'Y{Inicio_ACC_Criar}:Y{Fim_ACC_Criar}') 
-    DataEntrada = [cell.api.Text for cell in celulas_entrada]
-    
-    celulas_resposta = Pagina_Entrada.range(f'AA{Inicio_ACC_Criar}:AA{Fim_ACC_Criar}')
-    DataResposta = [cell.api.Text for cell in celulas_resposta]
+    # Abre o Excel via xlwings e fecha-o no final para libertar recursos
+    app = xw.App(visible=False)
+    try:
+        Plan_Entrada = app.books.open(str(caminho_apqp))
+        Pagina_Entrada = Plan_Entrada.sheets['APQP']
+        
+        PN_Methal     = Pagina_Entrada.range(f'A{Inicio_ACC_Criar}:A{Fim_ACC_Criar}').value
+        Cliente       = Pagina_Entrada.range(f'F{Inicio_ACC_Criar}:F{Fim_ACC_Criar}').value  
+        ClientePlanta = Pagina_Entrada.range(f'G{Inicio_ACC_Criar}:G{Fim_ACC_Criar}').value  
+        tipo          = Pagina_Entrada.range(f'H{Inicio_ACC_Criar}:H{Fim_ACC_Criar}').value
+        RFQ           = Pagina_Entrada.range(f'I{Inicio_ACC_Criar}:I{Fim_ACC_Criar}').value    
+        PNs           = Pagina_Entrada.range(f'J{Inicio_ACC_Criar}:J{Fim_ACC_Criar}').value   
+        REV           = Pagina_Entrada.range(f'K{Inicio_ACC_Criar}:K{Fim_ACC_Criar}').value
+        descricao     = Pagina_Entrada.range(f'L{Inicio_ACC_Criar}:L{Fim_ACC_Criar}').value
+        comprador     = Pagina_Entrada.range(f'M{Inicio_ACC_Criar}:M{Fim_ACC_Criar}').value
+        VolumeAnual   = Pagina_Entrada.range(f'P{Inicio_ACC_Criar}:P{Fim_ACC_Criar}').value   
+        Peso          = Pagina_Entrada.range(f'Q{Inicio_ACC_Criar}:Q{Fim_ACC_Criar}').value   
+        Declinar      = Pagina_Entrada.range(f'V{Inicio_ACC_Criar}:V{Fim_ACC_Criar}').value
+        
+        celulas_entrada = Pagina_Entrada.range(f'Y{Inicio_ACC_Criar}:Y{Fim_ACC_Criar}') 
+        DataEntrada = [cell.api.Text for cell in celulas_entrada]
+        
+        celulas_resposta = Pagina_Entrada.range(f'AA{Inicio_ACC_Criar}:AA{Fim_ACC_Criar}')
+        DataResposta = [cell.api.Text for cell in celulas_resposta]
+        
+        Plan_Entrada.close()
+    finally:
+        app.quit()
 
     def PegarInf(ColumSelecionada):
         if ColumSelecionada is None:
@@ -345,9 +357,9 @@ def PegandoDados_APQP(APQPSelecionada):
 
 
 # ---------------------------------------------------------
-# 3. CRIA PASTAS
+# 3. CRIA PASTAS E FICHEIROS
 # ---------------------------------------------------------
-def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peça_Criar, Comprador_Criar, ClienteList_cria, compradorList_criar, peso_criar, Declinar_crirar):
+def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peca_Criar, Comprador_Criar, ClienteList_cria, compradorList_criar, peso_criar, Declinar_crirar):
     
     pastas_Secundarias = [
         "1-RFQ", "2-Desenhos", "3-Analise Critica", "4-Planilha de Custo",
@@ -361,7 +373,7 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
 
     for i in range(len(PNs_Ciar)):
         if i < len(Declinar_crirar) and Declinar_crirar[i] == 1:
-            print(f"⏩ Pulando {PNs_Ciar[i]} - declinado")
+            print(f"⏩ Pulando {PNs_Ciar[i]} (declinado)")
             continue
         pn_limpo = format(PNs_Ciar[i])
         if not pn_limpo:
@@ -381,7 +393,7 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
             continue
         shutil.copy2(MODELO_ACC, caminho_excel_copiado)
         prenchendoPlanilha_ACC(
-            caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i]
+            caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peca_Criar[i], Comprador_Criar[i]
         )
         
         Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsm'
@@ -394,7 +406,7 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
         print(f"✅ Sucesso: Pasta '{pasta_principal}' criada!")
 
 
-def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePlanta_criar, VolumeAnual_criar, TipoItem_criar, Nome_Peça_Criar, ClienteList_cria, compradorList_criar, Declinar_crirar):
+def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePlanta_criar, VolumeAnual_criar, TipoItem_criar, Nome_Peca_Criar, ClienteList_cria, compradorList_criar, Declinar_crirar):
 
     if len(PNs_Ciar) == 0:
         print("Ops! Lista vazia")
@@ -427,7 +439,7 @@ def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePl
             ClientePlanta_criar[i], 
             compradorList_criar[i], 
             RFQ_criar[i], 
-            Nome_Peça_Criar[i], 
+            Nome_Peca_Criar[i], 
             TipoItem_criar[i], 
             rev_Craidas[i], 
             PN_MethalLsit_Criar[i],
@@ -437,12 +449,17 @@ def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePl
 
 
 # =========================================================
-# MENU PRINCIPAL
+# MENU PRINCIPAL COM CARREGAMENTO INICIAL
 # =========================================================
+print("🚀 A iniciar o sistema...")
+apqp_ativa = obter_ou_definir_apqp()
+
 Play = 0 
 
 while Play == 0:
-    print("\nO que gostaria?")
+    apqp_nome = APQP_PATH_ATUAL.name if APQP_PATH_ATUAL else "Nenhuma selecionada"
+    print(f"\n📌 APQP Ativa: [{apqp_nome}]")
+    print("O que gostaria de fazer?")
     print("[1] Mudar APQP")
     print("[2] Criar ACC")
     print("[3] Criar FIIN")
@@ -451,15 +468,14 @@ while Play == 0:
     opcao_menu = input("_> ").strip().upper()
     
     if opcao_menu == "1":
-        escrevendoArquivo_Jason()
+        obter_ou_definir_apqp(forcar_mudanca=True)
         
     elif opcao_menu == "2":
-        Caminho = LendoArquivo_Jason()
-        if not Caminho:
-            print("⚠️ Erro: Nenhum caminho configurado no conf.json. Use a opção [1] primeiro.")
+        apqp_path = obter_ou_definir_apqp()
+        if not apqp_path:
             continue
         try:
-            PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(Caminho)
+            PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(apqp_path)
             CriandoPastas(
                 PN_MethalLsit, PNsList, REVList, RFQList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, ClienteList, compradorList, PesoList, Declinar
             )
@@ -469,12 +485,11 @@ while Play == 0:
             traceback.print_exc()
 
     elif opcao_menu == "3":
-        Caminho = LendoArquivo_Jason()
-        if not Caminho:
-            print("⚠️ Erro: Nenhum caminho configurado no conf.json. Use a opção [1] primeiro.")
+        apqp_path = obter_ou_definir_apqp()
+        if not apqp_path:
             continue
         try:
-            PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(Caminho)
+            PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(apqp_path)
             CriandoFIIN(
                 PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, tipoList, descricaoLista, ClienteList, compradorList, Declinar
             )

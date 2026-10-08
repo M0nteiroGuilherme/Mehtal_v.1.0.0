@@ -6,18 +6,30 @@ import json
 import time
 import threading
 from pathlib import Path
-from tkinter import *
+import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
-
-# tenta importar openpyxl e xlwings
-try:
-    from openpyxl import load_workbook
-    import xlwings as xw
-except ImportError as e:
-    print(f"Faltando biblioteca: {e}")
+from openpyxl import load_workbook
+import xlwings as xw
 
 # =========================================================
-# CONFIG PARA EXE
+# CONFIGURAÇÃO DE PALETA DE CORES E TEMA (DARK MODE)
+# =========================================================
+BG_DARK = "#0f172a"        # Fundo Principal (Slate 900)
+CARD_BG = "#1e293b"        # Fundo dos Cards/Painéis (Slate 800)
+CARD_BORDER = "#334155"    # Borda dos Cards (Slate 700)
+TEXT_MAIN = "#f8fafc"      # Texto Principal (Slate 50)
+TEXT_MUTED = "#94a3b8"     # Texto Secundário (Slate 400)
+ACCENT_BLUE = "#2563eb"    # Azul Principal
+ACCENT_BLUE_HOVER = "#1d4ed8"
+ACCENT_GREEN = "#059669"   # Verde Destaque
+ACCENT_GREEN_HOVER = "#047857"
+CONSOLE_BG = "#020617"     # Fundo do Terminal (Slate 950)
+CONSOLE_FG = "#38bdf8"     # Texto do Terminal (Sky 400)
+INPUT_BG = "#0f172a"       # Fundo dos Campos de Entrada
+INPUT_FG = "#f8fafc"       # Texto dos Campos de Entrada
+
+# =========================================================
+# CORREÇÃO PARA FUNCIONAR EM EXE (PyInstaller)
 # =========================================================
 def get_app_dir():
     if getattr(sys, 'frozen', False):
@@ -27,7 +39,7 @@ def get_app_dir():
 
 def get_resource_path(nome_arquivo):
     if getattr(sys, 'frozen', False):
-        base = Path(sys._MEIPASS)
+        base = Path(sys._MEIPASS)  # type: ignore
     else:
         base = Path(__file__).resolve().parent
     return base / nome_arquivo
@@ -40,9 +52,9 @@ MODELO_CUSTO = get_resource_path("Planilha_Custo.xlsm")
 MODELO_FIIN = get_resource_path("FIIN.xlsx")
 
 # =========================================================
-# FUNÇÕES ORIGINAIS (mantidas)
+# FUNÇÕES DE FORMATAÇÃO E UTILITÁRIOS
 # =========================================================
-def format(texto):
+def format_texto(texto):
     if texto is None:
         return ""
     return re.sub(r'[\\/*?:"<>|]', '_', str(texto)).strip()
@@ -78,117 +90,29 @@ def formatar_volume(valor):
     except (ValueError, TypeError):
         return str(valor).strip()
 
-def encontrar_apqp_por_nome(nome_apqp: str, log_func=None):
-    def log(msg):
-        if log_func:
-            log_func(msg)
-        else:
-            print(msg)
-
-    nome_limpo = nome_apqp.strip()
-    if not nome_limpo:
-        return None
-    p_teste = Path(nome_limpo)
-    if p_teste.exists() and p_teste.is_file():
-        return p_teste
-    if Path(str(p_teste) + ".xlsx").exists():
-        return Path(str(p_teste) + ".xlsx")
-    nome_arquivo = nome_limpo if nome_limpo.lower().endswith('.xlsx') else f"{nome_limpo}.xlsx"
-    log(f"🔍 Procurando por '{nome_arquivo}'...")
-
-    pastas_busca = [APP_DIR]
-    try:
-        home = Path.home()
-        for sub in ["Documents", "Documentos", "Desktop", "Área de Trabalho", "Downloads"]:
-            p = home / sub
-            if p.exists():
-                pastas_busca.append(p)
-        if (home / "OneDrive").exists():
-            pastas_busca.append(home / "OneDrive")
-    except:
-        pass
-
-    IGNORAR = {'Windows', 'Program Files', 'Program Files (x86)', 'ProgramData',
-               '$Recycle.Bin', 'AppData', '.git', '__pycache__', 'node_modules'}
-
-    def busca_rapida(pasta_base: Path):
-        try:
-            for arquivo in pasta_base.rglob(nome_arquivo):
-                if any(ign in arquivo.parts for ign in IGNORAR):
-                    continue
-                if arquivo.is_file():
-                    return arquivo
-        except:
-            pass
-        return None
-
-    for pasta in pastas_busca:
-        log(f"  > Verificando em: {pasta}")
-        resultado = busca_rapida(pasta)
-        if resultado:
-            log(f"✅ Encontrado em: {resultado}")
-            return resultado
-
-    log("  > Varrendo C: e D:...")
-    for letra in ["C:", "D:"]:
-        drive = Path(letra + "/")
-        if not drive.exists():
-            continue
-        try:
-            for root, dirs, files in os.walk(drive, topdown=True):
-                dirs[:] = [d for d in dirs if d not in IGNORAR and not d.startswith('$')]
-                lower_files = {f.lower(): f for f in files}
-                if nome_arquivo.lower() in lower_files:
-                    achado = Path(root) / lower_files[nome_arquivo.lower()]
-                    log(f"✅ Encontrado em: {achado}")
-                    return achado
-        except:
-            continue
-    log(f"❌ '{nome_arquivo}' não encontrado.")
-    return None
-
-# --- JSON ---
-def salvar_apqp_json(nome):
-    nome_limpo = Path(nome).stem if nome.lower().endswith('.xlsx') else Path(nome).name
-    if "\\" in nome or "/" in nome:
-        nome_limpo = Path(nome).stem
-    dados = {"apqp_nome": nome_limpo}
-    with open(CONF_PATH, 'w', encoding='utf-8') as f:
-        json.dump(dados, f, indent=4, ensure_ascii=False)
-    return nome_limpo
-
-def ler_apqp_json():
-    if not CONF_PATH.exists():
-        return None
-    try:
-        with open(CONF_PATH, "r", encoding='utf-8') as f:
-            conteudo = json.load(f)
-            if isinstance(conteudo, str):
-                return Path(conteudo).stem
-            if isinstance(conteudo, dict):
-                return conteudo.get("apqp_nome")
-            return conteudo
-    except:
-        return None
-
-# --- Planilhas ---
-def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc, RFQ_Acc, Projeto_Acc, ClientePlanta_Acc, VolumeAnual_Acc, DataEntrada_Acc, DataResposta_Acc, TipoItem_Acc, Nome_Peça_Acc, Comprador_Acc):
+# =========================================================
+# OPERAÇÕES DE EXCEL
+# =========================================================
+def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc, RFQ_Acc, Projeto_Acc, ClientePlanta_Acc, VolumeAnual_Acc, DataEntrada_Acc, DataResposta_Acc, TipoItem_Acc, Nome_Peca_Acc, Comprador_Acc):
     Plan_Saida = load_workbook(caminho_arquivo)
     Pagina_Saida = Plan_Saida['Plan1']
-    Pagina_Saida['F3'].value = str(PN_MTH_ACC) if PN_MTH_ACC else ""
-    Pagina_Saida['F6'].value = str(PN_Cliente_ACC) if PN_Cliente_ACC else ""
-    Pagina_Saida['Q6'].value = str(REV_Acc) if REV_Acc else ""
-    Pagina_Saida['S3'].value = str(RFQ_Acc) if RFQ_Acc else ""
-    Pagina_Saida['AD3'].value = str(Projeto_Acc) if Projeto_Acc else ""
-    Pagina_Saida['AK3'].value = str(ClientePlanta_Acc) if ClientePlanta_Acc else ""
-    Pagina_Saida['Z6'].value = str(Nome_Peça_Acc) if Nome_Peça_Acc else ""
-    Pagina_Saida['AJ6'].value = str(Comprador_Acc) if Comprador_Acc else ""
-    Pagina_Saida['H12'].value = str(DataEntrada_Acc).split(' ')[0] if DataEntrada_Acc else ""
-    Pagina_Saida['T12'].value = str(DataResposta_Acc).split(' ')[0] if DataResposta_Acc else ""
-    if isinstance(VolumeAnual_Acc, list):
-        Pagina_Saida['F9'].value = ", ".join([formatar_volume(v) for v in VolumeAnual_Acc])
+    Pagina_Saida['F3'] = str(PN_MTH_ACC) if PN_MTH_ACC else ""
+    Pagina_Saida['F6'] = str(PN_Cliente_ACC) if PN_Cliente_ACC else ""
+    Pagina_Saida['Q6'] = str(REV_Acc) if REV_Acc else ""
+    Pagina_Saida['S3'] = str(RFQ_Acc) if RFQ_Acc else ""
+    Pagina_Saida['AD3'] = str(Projeto_Acc) if Projeto_Acc else ""
+    Pagina_Saida['AK3'] = str(ClientePlanta_Acc) if ClientePlanta_Acc else ""
+    Pagina_Saida['Z6'] = str(Nome_Peca_Acc) if Nome_Peca_Acc else ""
+    Pagina_Saida['AJ6'] = str(Comprador_Acc) if Comprador_Acc else ""
+    Pagina_Saida['H12'] = str(DataEntrada_Acc).split(' ')[0] if DataEntrada_Acc else ""
+    Pagina_Saida['T12'] = str(DataResposta_Acc).split(' ')[0] if DataResposta_Acc else ""
+    
+    vol = VolumeAnual_Acc
+    if isinstance(vol, list):
+        Pagina_Saida['F9'].value = ", ".join([formatar_volume(v) for v in vol])
     else:
-        Pagina_Saida['F9'].value = formatar_volume(VolumeAnual_Acc)
+        Pagina_Saida['F9'].value = formatar_volume(vol)
+            
     if TipoItem_Acc == "Novo":
         Pagina_Saida['S9'].value = "X"
     elif TipoItem_Acc == "Protótipo":
@@ -201,8 +125,9 @@ def prenchendoPlanilha_ACC(caminho_arquivo, PN_MTH_ACC, PN_Cliente_ACC, REV_Acc,
             Pagina_Saida['AA10'].value = "X"
     Plan_Saida.save(caminho_arquivo)
 
+
 def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao, Volume, Cliente, Tipo, Peso):
-    time.sleep(0.2)
+    time.sleep(0.1)
     Plan_saida = load_workbook(caminho_arquivo, keep_vba=True)
     pagina_saida = Plan_saida['Planilha de Custo']
     pagina_saida['C6'].value = str(PN_cliente) if PN_cliente else ""
@@ -211,15 +136,23 @@ def prenchendoPlanilha_Custo(caminho_arquivo, PN_cliente, PN_MethalLsit, Revisao
     pagina_saida['F9'].value = str(Cliente) if Cliente else ""
     pagina_saida['G8'].value = str(Tipo) if Tipo else ""
     pagina_saida['M8'].value = str(Peso) if Peso else ""
+    
     if isinstance(Volume, list):
         pagina_saida['F9'].value = ", ".join([formatar_volume(v) for v in Volume])
     else:
         pagina_saida['F9'].value = formatar_volume(Volume)
+    
     Plan_saida.save(caminho_arquivo)
+
 
 def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList, Cliente, Planta_clinete, Local_clinete, Clinete_Comprador, Projeto, Descricao, Tipo, Rev, PNsListInterno, Volume):
     Plan_saida = load_workbook(caminho_Arquivo)
-    pagina_saida = Plan_saida['FOR.ENG.03'] if 'FOR.ENG.03' in Plan_saida.sheetnames else Plan_saida.active
+    
+    if 'FOR.ENG.03' in Plan_saida.sheetnames:
+        pagina_saida = Plan_saida['FOR.ENG.03']
+    else:
+        pagina_saida = Plan_saida.active
+    
     pagina_saida['C6'].value = str(Cliente) if Cliente else ""
     pagina_saida['H6'].value = str(Planta_clinete) if Planta_clinete else ""
     pagina_saida['K6'].value = str(Local_clinete) if Local_clinete else ""
@@ -229,51 +162,60 @@ def prenchendoPlanilha_FINN(caminho_Arquivo, PNsList, Cliente, Planta_clinete, L
     pagina_saida['H9'].value = str(Rev) if Rev else ""
     pagina_saida['E9'].value = str(PNsList) if PNsList else ""
     pagina_saida['E8'].value = str(PNsListInterno) if PNsListInterno else ""
+    
     try:
-        pagina_saida['C15'].value = str(formatar_volume(Volume))
-    except:
-        pagina_saida['C15'].value = str(Volume)
+        vol_str = formatar_volume(Volume)
+        pagina_saida['D15'].value = str(vol_str)
+    except Exception:
+        pagina_saida['D15'].value = str(Volume)
+    
     if Tipo == "Novo":
         pagina_saida['C5'].value = "X"
     elif Tipo == "Modificação":
         pagina_saida['F5'].value = "X"
-    elif Tipo == "Substitução":
+    elif Tipo == "Substituição":
         pagina_saida['I5'].value = "X"
     else:
         if Tipo:
             pagina_saida['H5'].value = str(Tipo)
             pagina_saida['I5'].value = "X"
+        
     Plan_saida.save(caminho_Arquivo)
 
-def PegandoDados_APQP(APQPSelecionada, inicio, fim, log_func=None):
-    caminho_apqp = encontrar_apqp_por_nome(APQPSelecionada, log_func)
-    if not caminho_apqp or not caminho_apqp.exists():
-        raise FileNotFoundError(f"Não achei a APQP '{APQPSelecionada}.xlsx'")
-    
-    def log(m): 
-        if log_func: log_func(m)
 
-    log(f"📂 Usando APQP: {caminho_apqp}")
-    Plan_Entrada = xw.Book(str(caminho_apqp))
-    Pagina_Entrada = Plan_Entrada.sheets['APQP']
+def PegandoDados_APQP(caminho_apqp: Path, linha_inicio: str, linha_fim: str):
+    if not caminho_apqp or not caminho_apqp.exists():
+        raise FileNotFoundError(f"Ficheiro APQP não encontrado: {caminho_apqp}")
     
-    PN_Methal     = Pagina_Entrada.range(f'A{inicio}:A{fim}').value
-    Cliente       = Pagina_Entrada.range(f'F{inicio}:F{fim}').value  
-    ClientePlanta = Pagina_Entrada.range(f'G{inicio}:G{fim}').value  
-    tipo          = Pagina_Entrada.range(f'H{inicio}:H{fim}').value
-    RFQ           = Pagina_Entrada.range(f'I{inicio}:I{fim}').value    
-    PNs           = Pagina_Entrada.range(f'J{inicio}:J{fim}').value   
-    REV           = Pagina_Entrada.range(f'K{inicio}:K{fim}').value
-    descricao     = Pagina_Entrada.range(f'L{inicio}:L{fim}').value
-    comprador     = Pagina_Entrada.range(f'M{inicio}:M{fim}').value
-    VolumeAnual   = Pagina_Entrada.range(f'P{inicio}:P{fim}').value   
-    Peso          = Pagina_Entrada.range(f'Q{inicio}:Q{fim}').value   
-    Declinar      = Pagina_Entrada.range(f'V{inicio}:V{fim}').value
+    print(f"📂 A ler APQP: {caminho_apqp.name} (Linhas {linha_inicio} a {linha_fim})")
     
-    celulas_entrada = Pagina_Entrada.range(f'Y{inicio}:Y{fim}') 
-    DataEntrada = [cell.api.Text for cell in celulas_entrada]
-    celulas_resposta = Pagina_Entrada.range(f'AA{inicio}:AA{fim}')
-    DataResposta = [cell.api.Text for cell in celulas_resposta]
+    app = xw.App(visible=False)
+    try:
+        Plan_Entrada = app.books.open(str(caminho_apqp))
+        Pagina_Entrada = Plan_Entrada.sheets['APQP']
+        
+        PN_Methal     = Pagina_Entrada.range(f'A{linha_inicio}:A{linha_fim}').value
+        Cliente       = Pagina_Entrada.range(f'F{linha_inicio}:F{linha_fim}').value  
+        ClientePlanta = Pagina_Entrada.range(f'G{linha_inicio}:G{linha_fim}').value  
+        tipo          = Pagina_Entrada.range(f'H{linha_inicio}:H{linha_fim}').value
+        RFQ           = Pagina_Entrada.range(f'I{linha_inicio}:I{linha_fim}').value    
+        PNs           = Pagina_Entrada.range(f'J{linha_inicio}:J{linha_fim}').value   
+        REV           = Pagina_Entrada.range(f'K{linha_inicio}:K{linha_fim}').value
+        descricao     = Pagina_Entrada.range(f'L{linha_inicio}:L{linha_fim}').value
+        comprador     = Pagina_Entrada.range(f'M{linha_inicio}:M{linha_fim}').value
+        VolumeAnual   = Pagina_Entrada.range(f'P{linha_inicio}:P{linha_fim}').value   
+        Peso          = Pagina_Entrada.range(f'Q{linha_inicio}:Q{linha_fim}').value   
+        Declinar      = Pagina_Entrada.range(f'V{linha_inicio}:V{linha_fim}').value
+        
+        celulas_entrada = Pagina_Entrada.range(f'Y{linha_inicio}:Y{linha_fim}') 
+        DataEntrada = [cell.api.Text for cell in celulas_entrada]
+        
+        celulas_resposta = Pagina_Entrada.range(f'AA{linha_inicio}:AA{linha_fim}')
+        DataResposta = [cell.api.Text for cell in celulas_resposta]
+        
+        Plan_Entrada.close()
+    finally:
+        app.quit()
 
     def PegarInf(ColumSelecionada):
         if ColumSelecionada is None:
@@ -304,38 +246,43 @@ def PegandoDados_APQP(APQPSelecionada, inicio, fim, log_func=None):
         DeclinarList = Declinar
 
     ListaFormanta_CompradorACC = []
-    PNsList = [format(pn) for pn in PNsList_Formatar]
-    REVList = [format(rev) for rev in REVList_Formatar]
+    PNsList = [format_texto(pn) for pn in PNsList_Formatar]
+    REVList = [format_texto(rev) for rev in REVList_Formatar]
+    
     for i in range(len(PNsList)):
         comp = compradorList[i] if i < len(compradorList) else ""
         cli  = ClienteList[i]   if i < len(ClienteList)   else ""
-        ListaFormanta_CompradorACC.append(f"{comp}   {cli}" if comp and cli else f"{comp}{cli}")
+        if comp and cli:
+            ListaFormanta_CompradorACC.append(f"{comp}   {cli}")
+        else:
+            ListaFormanta_CompradorACC.append(f"{comp}{cli}")
     
     return PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, DeclinarList
 
-def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peça_Criar, Comprador_Criar, ClienteList_cria, compradorList_criar, peso_criar, Declinar_crirar, log_func=None):
-    def log(m):
-        if log_func: log_func(m)
+
+def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto_criar, ClientePlanta_criar, VolumeAnual_criar, DataEntrada_criar, DataResposta_criar, TipoItem_criar, Nome_Peca_Criar, Comprador_Criar, ClienteList_cria, compradorList_criar, peso_criar, Declinar_crirar):
+    
     pastas_Secundarias = [
         "1-RFQ", "2-Desenhos", "3-Analise Critica", "4-Planilha de Custo",
         "5-CBD", "6-Carta Comercial", "8-Terceiros", "9-Pedidos",
         "10-FIIN", "11-Emails", "12-Custo Logistico", "13-Obsoleto", "14-Modificações"
     ] 
+    
     if len(PNs_Ciar) == 0:
-        log("Ops! A lista de PNs está vazia.")
-        return 0
-    count = 0
+        print("⚠️ A lista de PNs está vazia.")
+        return
+
     for i in range(len(PNs_Ciar)):
         if i < len(Declinar_crirar) and Declinar_crirar[i] == 1:
-            log(f"⏩ Pulando {PNs_Ciar[i]} - declinado")
+            print(f"⏩ A ignorar {PNs_Ciar[i]} (declinado)")
             continue
-        pn_limpo = format(PNs_Ciar[i])
+        pn_limpo = format_texto(PNs_Ciar[i])
         if not pn_limpo:
             continue
-        rfq_limpo = format(RFQ_criar[i])
+        rfq_limpo = format_texto(RFQ_criar[i])
         pasta_principal = pn_limpo
         caminho_Base = os.path.join(rfq_limpo, pasta_principal) if rfq_limpo else pasta_principal
-        log(f"📁 Criando: {caminho_Base}")
+        
         os.makedirs(caminho_Base, exist_ok=True)
         for nome_subpasta in pastas_Secundarias:
             os.makedirs(os.path.join(caminho_Base, nome_subpasta), exist_ok=True)
@@ -343,228 +290,338 @@ def CriandoPastas(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, Projeto
         novo_nome_excel = f'{pasta_principal}_REV.{rev_Craidas[i]}_ACC.xlsx'
         caminho_excel_copiado = os.path.join(caminho_Base, "3-Analise Critica", novo_nome_excel)
         if not MODELO_ACC.exists():
-            log(f"❌ Modelo ACC não encontrado em {MODELO_ACC}")
+            print(f"❌ Modelo ACC não encontrado em {MODELO_ACC}")
             continue
         shutil.copy2(MODELO_ACC, caminho_excel_copiado)
         prenchendoPlanilha_ACC(
-            caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peça_Criar[i], Comprador_Criar[i]
+            caminho_excel_copiado, PN_MethalLsit_Criar[i], PNs_Ciar[i], rev_Craidas[i], RFQ_criar[i], Projeto_criar[i], ClientePlanta_criar[i], VolumeAnual_criar[i], DataEntrada_criar[i], DataResposta_criar[i], TipoItem_criar[i], Nome_Peca_Criar[i], Comprador_Criar[i]
         )
+        
         Novo_PlanilhaCusto = f'{pasta_principal}_Planilha_Custo.xlsm'
         PlanilhaCusto_copiada = os.path.join(caminho_Base, "4-Planilha de Custo", Novo_PlanilhaCusto)
         if not MODELO_CUSTO.exists():
-            log(f"❌ Modelo Custo não encontrado")
+            print("❌ Modelo Custo não encontrado")
             continue
         shutil.copy2(MODELO_CUSTO, PlanilhaCusto_copiada)
         prenchendoPlanilha_Custo(PlanilhaCusto_copiada, PNs_Ciar[i], PN_MethalLsit_Criar[i], rev_Craidas[i], VolumeAnual_criar[i], ClienteList_cria[i], TipoItem_criar[i], peso_criar[i])
-        log(f"✅ Sucesso: Pasta '{pasta_principal}' criada!")
-        count += 1
-    return count
+        print(f"✅ Sucesso: Pasta '{pasta_principal}' criada com ACC e Custo!")
 
-def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePlanta_criar, VolumeAnual_criar, TipoItem_criar, Nome_Peça_Criar, ClienteList_cria, compradorList_criar, Declinar_crirar, log_func=None):
-    def log(m):
-        if log_func: log_func(m)
+
+def CriandoFIIN(PN_MethalLsit_Criar, PNs_Ciar, rev_Craidas, RFQ_criar, ClientePlanta_criar, VolumeAnual_criar, TipoItem_criar, Nome_Peca_Criar, ClienteList_cria, compradorList_criar, Declinar_crirar):
+
     if len(PNs_Ciar) == 0:
-        log("Ops! Lista vazia")
-        return 0
-    count = 0
+        print("⚠️ A lista de PNs está vazia.")
+        return
+
     for i in range(len(PNs_Ciar)):
         if i < len(Declinar_crirar) and Declinar_crirar[i] == 1:
             continue
-        pn_limpo = format(PNs_Ciar[i])
+        pn_limpo = format_texto(PNs_Ciar[i])
         if not pn_limpo:
             continue
         pasta_principal = pn_limpo
         caminho_destino_pasta = os.path.join(pasta_principal, "10-FIIN") if os.path.exists(pasta_principal) else pasta_principal
         os.makedirs(caminho_destino_pasta, exist_ok=True)
+
         Novo_Fiin = f"{pasta_principal}_FIIN.xlsx"
         Fiin_copiada = os.path.join(caminho_destino_pasta, Novo_Fiin)
+
         if not MODELO_FIIN.exists():
-            log(f"❌ Modelo FIIN não encontrado")
+            print(f"❌ Modelo FIIN não encontrado em {MODELO_FIIN}")
             continue
+
         shutil.copy2(MODELO_FIIN, Fiin_copiada)
+                                
         prenchendoPlanilha_FINN(
-            Fiin_copiada, PNs_Ciar[i], ClienteList_cria[i], ClientePlanta_criar[i], ClientePlanta_criar[i], compradorList_criar[i], RFQ_criar[i], Nome_Peça_Criar[i], TipoItem_criar[i], rev_Craidas[i], PN_MethalLsit_Criar[i], VolumeAnual_criar[i]
+            Fiin_copiada, 
+            PNs_Ciar[i], 
+            ClienteList_cria[i], 
+            ClientePlanta_criar[i], 
+            ClientePlanta_criar[i], 
+            compradorList_criar[i], 
+            RFQ_criar[i], 
+            Nome_Peca_Criar[i], 
+            TipoItem_criar[i], 
+            rev_Craidas[i], 
+            PN_MethalLsit_Criar[i],
+            VolumeAnual_criar[i]
         )
-        log(f"✅ FIIN para '{pasta_principal}' criada!")
-        count += 1
-    return count
+        print(f"✅ FIIN para '{pasta_principal}' criada!")
 
 # =========================================================
-# INTERFACE TKINTER
+# REDIRECIONADOR DE CONSOLA PARA TKINTER
 # =========================================================
-class App:
+class ConsoleRedirector:
+    def __init__(self, text_widget):
+        self.text_widget = text_widget
+
+    def write(self, str_val):
+        self.text_widget.insert(tk.END, str_val)
+        self.text_widget.see(tk.END)
+
+    def flush(self):
+        pass
+
+# =========================================================
+# INTERFACE GRÁFICA MODERNA (TKINTER COM TEMA PERSONALIZADO)
+# =========================================================
+class APQPAppGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Gerador APQP - Methal v1.0")
-        self.root.geometry("850x650")
-        self.root.minsize(850, 650)
+        self.root.title("Comercial - Automação APQP / ACC / FIIN")
+        self.root.geometry("860x700")
+        self.root.minsize(750, 600)
+        self.root.configure(bg=BG_DARK)
+
+        self.apqp_path = None
         
-        # Estilo
+        self.aplicar_estilos()
+        self.setup_ui()
+        self.carregar_configuracao_inicial()
+        
+        # Redireciona o stdout (print) para a caixa de texto
+        sys.stdout = ConsoleRedirector(self.log_text)
+
+    def aplicar_estilos(self):
         style = ttk.Style()
-        try:
-            style.theme_use('clam')
-        except:
-            pass
+        style.theme_use('clam')
         
-        # Cores
-        BG = "#f5f5f5"
-        self.root.configure(bg=BG)
-
-        # Top frame - APQP
-        top_frame = LabelFrame(root, text=" 1. Configurar APQP ", bg=BG, font=("Segoe UI", 10, "bold"), padx=15, pady=10)
-        top_frame.pack(fill=X, padx=15, pady=10)
-
-        Label(top_frame, text="Nome da APQP:", bg=BG, font=("Segoe UI", 9)).grid(row=0, column=0, sticky=W, pady=5)
-        self.entry_apqp = Entry(top_frame, font=("Segoe UI", 10), width=45)
-        self.entry_apqp.grid(row=0, column=1, padx=10, pady=5, sticky=EW)
+        # Configurações Gerais
+        style.configure('.', background=BG_DARK, foreground=TEXT_MAIN, font=('Segoe UI', 9))
         
-        btn_procurar = Button(top_frame, text="📂 Procurar Arquivo", command=self.procurar_arquivo, bg="#e0e0e0", relief=FLAT, padx=10, pady=3)
-        btn_procurar.grid(row=0, column=2, padx=5)
+        # Frame de Card Personalizado
+        style.configure('Card.TFrame', background=CARD_BG, relief='flat', borderwidth=1)
         
-        btn_salvar = Button(top_frame, text="💾 Salvar", command=self.salvar_apqp, bg="#1976d2", fg="white", relief=FLAT, padx=15, pady=3, font=("Segoe UI", 9, "bold"))
-        btn_salvar.grid(row=0, column=3, padx=5)
+        # Labels
+        style.configure('Title.TLabel', background=BG_DARK, foreground=TEXT_MAIN, font=('Segoe UI', 14, 'bold'))
+        style.configure('SubTitle.TLabel', background=BG_DARK, foreground=TEXT_MUTED, font=('Segoe UI', 9))
+        style.configure('CardHeader.TLabel', background=CARD_BG, foreground=TEXT_MAIN, font=('Segoe UI', 10, 'bold'))
+        style.configure('CardBody.TLabel', background=CARD_BG, foreground=TEXT_MUTED, font=('Segoe UI', 9))
+        style.configure('Path.TLabel', background=CARD_BG, foreground='#38bdf8', font=('Consolas', 9))
 
-        self.label_conf = Label(top_frame, text=f"conf.json: {CONF_PATH}", bg=BG, fg="#666", font=("Segoe UI", 8))
-        self.label_conf.grid(row=1, column=0, columnspan=4, sticky=W, pady=(5,0))
+        # Entradas de Texto
+        style.configure('Custom.TEntry', fieldbackground=INPUT_BG, foreground=INPUT_FG, insertcolor=TEXT_MAIN, borderwidth=1)
 
-        # Checagem de modelos
-        modelos_ok = f"Modelos: ACC={'✅' if MODELO_ACC.exists() else '❌'} | Custo={'✅' if MODELO_CUSTO.exists() else '❌'} | FIIN={'✅' if MODELO_FIIN.exists() else '❌'}"
-        Label(top_frame, text=modelos_ok, bg=BG, fg="#333", font=("Segoe UI", 8)).grid(row=2, column=0, columnspan=4, sticky=W)
+        # Botões Principais (Azul)
+        style.configure('Primary.TButton', 
+                        background=ACCENT_BLUE, 
+                        foreground='#ffffff', 
+                        font=('Segoe UI', 9, 'bold'), 
+                        borderwidth=0, 
+                        focusthickness=0, 
+                        padding=(12, 8))
+        style.map('Primary.TButton', 
+                  background=[('active', ACCENT_BLUE_HOVER), ('disabled', '#334155')],
+                  foreground=[('disabled', '#64748b')])
 
-        top_frame.columnconfigure(1, weight=1)
+        # Botões Secundários/Ação (Verde)
+        style.configure('Success.TButton', 
+                        background=ACCENT_GREEN, 
+                        foreground='#ffffff', 
+                        font=('Segoe UI', 9, 'bold'), 
+                        borderwidth=0, 
+                        focusthickness=0, 
+                        padding=(12, 8))
+        style.map('Success.TButton', 
+                  background=[('active', ACCENT_GREEN_HOVER), ('disabled', '#334155')],
+                  foreground=[('disabled', '#64748b')])
 
-        # Middle frame - Linhas
-        mid_frame = LabelFrame(root, text=" 2. Intervalo de Linhas ", bg=BG, font=("Segoe UI", 10, "bold"), padx=15, pady=10)
-        mid_frame.pack(fill=X, padx=15, pady=5)
+        # Botão neutro (Cinza escuro)
+        style.configure('Secondary.TButton', 
+                        background='#334155', 
+                        foreground='#ffffff', 
+                        font=('Segoe UI', 9), 
+                        borderwidth=0, 
+                        padding=(10, 6))
+        style.map('Secondary.TButton', background=[('active', '#475569')])
 
-        Label(mid_frame, text="Linha Inicial:", bg=BG).grid(row=0, column=0, sticky=W, padx=5)
-        self.entry_inicio = Entry(mid_frame, width=10, font=("Segoe UI", 10), justify=CENTER)
-        self.entry_inicio.grid(row=0, column=1, padx=5)
+    def criar_card(self, parent, titulo):
+        # Cria um container em formato de cartão com cabeçalho
+        outer_frame = tk.Frame(parent, bg=CARD_BORDER, bd=1, relief='flat')
+        card_content = tk.Frame(outer_frame, bg=CARD_BG, padx=15, pady=12)
+        card_content.pack(fill=tk.BOTH, expand=True, padx=1, pady=1)
+
+        lbl_title = ttk.Label(card_content, text=titulo, style='CardHeader.TLabel')
+        lbl_title.pack(anchor=tk.W, pady=(0, 8))
+
+        return outer_frame, card_content
+
+    def setup_ui(self):
+        main_container = tk.Frame(self.root, bg=BG_DARK, padx=20, pady=20)
+        main_container.pack(fill=tk.BOTH, expand=True)
+
+        # Header Principal
+        header_frame = tk.Frame(main_container, bg=BG_DARK)
+        header_frame.pack(fill=tk.X, pady=(0, 15))
+
+        lbl_title = ttk.Label(header_frame, text="⚙️ Automação de Comercial", style='Title.TLabel')
+        lbl_title.pack(anchor=tk.W)
+        lbl_sub = ttk.Label(header_frame, text="Gestão de APQP, Geração Automática de ACC, Custo e FIIN", style='SubTitle.TLabel')
+        lbl_sub.pack(anchor=tk.W)
+
+        # 1. Card de Seleção do Ficheiro APQP
+        card_apqp_border, card_apqp = self.criar_card(main_container, "📁 Ficheiro APQP Ativo")
+        card_apqp_border.pack(fill=tk.X, pady=(0, 12))
+
+        apqp_info_frame = tk.Frame(card_apqp, bg=CARD_BG)
+        apqp_info_frame.pack(fill=tk.X)
+
+        self.lbl_apqp_path = ttk.Label(apqp_info_frame, text="Nenhum ficheiro selecionado...", style='Path.TLabel', wraplength=580)
+        self.lbl_apqp_path.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+
+        btn_selecionar = ttk.Button(apqp_info_frame, text="📂 Selecionar APQP", style='Secondary.TButton', command=self.selecionar_apqp)
+        btn_selecionar.pack(side=tk.RIGHT)
+
+        # 2. Card de Intervalo de Linhas
+        card_linhas_border, card_linhas = self.criar_card(main_container, "📊 Intervalo de Leitura (Linhas no Excel)")
+        card_linhas_border.pack(fill=tk.X, pady=(0, 12))
+
+        grid_linhas = tk.Frame(card_linhas, bg=CARD_BG)
+        grid_linhas.pack(fill=tk.X)
+
+        lbl_inicio = ttk.Label(grid_linhas, text="Linha Inicial:", style='CardBody.TLabel')
+        lbl_inicio.grid(row=0, column=0, padx=(0, 8), pady=5, sticky=tk.W)
+        
+        self.entry_inicio = ttk.Entry(grid_linhas, width=10, style='Custom.TEntry')
+        self.entry_inicio.grid(row=0, column=1, padx=(0, 20), pady=5)
         self.entry_inicio.insert(0, "2")
 
-        Label(mid_frame, text="Linha Final:", bg=BG).grid(row=0, column=2, sticky=W, padx=(20,5))
-        self.entry_fim = Entry(mid_frame, width=10, font=("Segoe UI", 10), justify=CENTER)
-        self.entry_fim.grid(row=0, column=3, padx=5)
+        lbl_fim = ttk.Label(grid_linhas, text="Linha Final:", style='CardBody.TLabel')
+        lbl_fim.grid(row=0, column=2, padx=(0, 8), pady=5, sticky=tk.W)
+        
+        self.entry_fim = ttk.Entry(grid_linhas, width=10, style='Custom.TEntry')
+        self.entry_fim.grid(row=0, column=3, padx=(0, 10), pady=5)
         self.entry_fim.insert(0, "10")
 
-        Label(mid_frame, text="Ex: de 2 até 50", bg=BG, fg="#888", font=("Segoe UI", 8, "italic")).grid(row=0, column=4, padx=20)
+        # 3. Card de Operações/Ações
+        card_acoes_border, card_acoes = self.criar_card(main_container, "🚀 Execução das Automações")
+        card_acoes_border.pack(fill=tk.X, pady=(0, 12))
 
-        # Botões de ação
-        action_frame = Frame(root, bg=BG)
-        action_frame.pack(fill=X, padx=15, pady=15)
+        btns_frame = tk.Frame(card_acoes, bg=CARD_BG)
+        btns_frame.pack(fill=tk.X, pady=5)
 
-        self.btn_acc = Button(action_frame, text="📁  CRIAR ACC + CUSTO", command=lambda: self.executar("ACC"), 
-                              bg="#2e7d32", fg="white", font=("Segoe UI", 11, "bold"), 
-                              relief=FLAT, padx=20, pady=12, cursor="hand2")
-        self.btn_acc.pack(side=LEFT, fill=X, expand=True, padx=(0,10))
+        self.btn_acc = ttk.Button(btns_frame, text="⚡ Criar ACC & Estrutura de Pastas", style='Primary.TButton', command=lambda: self.executar_em_thread(self.acao_criar_acc))
+        self.btn_acc.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
 
-        self.btn_fiin = Button(action_frame, text="📄  CRIAR FIIN", command=lambda: self.executar("FIIN"), 
-                               bg="#ef6c00", fg="white", font=("Segoe UI", 11, "bold"), 
-                               relief=FLAT, padx=20, pady=12, cursor="hand2")
-        self.btn_fiin.pack(side=LEFT, fill=X, expand=True)
+        self.btn_fiin = ttk.Button(btns_frame, text="📄 Gerar Ficheiros FIIN", style='Success.TButton', command=lambda: self.executar_em_thread(self.acao_criar_fiin))
+        self.btn_fiin.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
 
-        # Log
-        log_frame = LabelFrame(root, text=" Log de Execução ", bg=BG, font=("Segoe UI", 10, "bold"), padx=10, pady=10)
-        log_frame.pack(fill=BOTH, expand=True, padx=15, pady=(0,15))
+        # 4. Card do Terminal / Console
+        card_log_border, card_log = self.criar_card(main_container, "🖥️ Console de Processamento em Tempo Real")
+        card_log_border.pack(fill=tk.BOTH, expand=True)
 
-        self.log_text = scrolledtext.ScrolledText(log_frame, font=("Consolas", 9), bg="#1e1e1e", fg="#d4d4d4", 
-                                                   insertbackground="white", relief=FLAT, padx=10, pady=10)
-        self.log_text.pack(fill=BOTH, expand=True)
-        self.log_text.insert(END, "Bem-vindo ao Gerador APQP!\n")
-        self.log_text.insert(END, f"Pasta do app: {APP_DIR}\n")
-        
-        # Carregar salvo
-        apqp_salva = ler_apqp_json()
-        if apqp_salva:
-            self.entry_apqp.insert(0, apqp_salva)
-            self.log(f"APQP carregada do conf.json: {apqp_salva}")
-
-    def log(self, msg):
-        def _log():
-            self.log_text.insert(END, msg + "\n")
-            self.log_text.see(END)
-            self.root.update_idletasks()
-        # thread safe
-        if threading.current_thread() is threading.main_thread():
-            _log()
-        else:
-            self.root.after(0, _log)
-
-    def procurar_arquivo(self):
-        arquivo = filedialog.askopenfilename(
-            title="Selecione a APQP",
-            filetypes=[("Excel", "*.xlsx *.xlsm"), ("Todos", "*.*")]
+        self.log_text = scrolledtext.ScrolledText(
+            card_log, 
+            height=10, 
+            font=("Consolas", 9), 
+            bg=CONSOLE_BG, 
+            fg=CONSOLE_FG, 
+            insertbackground="#ffffff",
+            relief='flat',
+            bd=0
         )
-        if arquivo:
-            nome = Path(arquivo).stem
-            self.entry_apqp.delete(0, END)
-            self.entry_apqp.insert(0, nome)
-            self.log(f"Arquivo selecionado: {arquivo}")
-            self.log(f"Nome extraído: {nome} (será salvo só o nome)")
+        self.log_text.pack(fill=tk.BOTH, expand=True, pady=(5, 0))
 
-    def salvar_apqp(self):
-        nome = self.entry_apqp.get().strip()
-        if not nome:
-            messagebox.showwarning("Aviso", "Digite o nome da APQP")
-            return
-        try:
-            salvo = salvar_apqp_json(nome)
-            self.log(f"💾 Salvo em {CONF_PATH}: {salvo}")
-            messagebox.showinfo("Salvo", f"APQP '{salvo}' salva com sucesso!\nO sistema vai procurar '{salvo}.xlsx' no seu PC quando você clicar em Criar.")
-        except Exception as e:
-            messagebox.showerror("Erro", str(e))
+    def carregar_configuracao_inicial(self):
+        if CONF_PATH.exists():
+            try:
+                with open(CONF_PATH, "r", encoding='utf-8') as arquivo:
+                    conteudo = json.load(arquivo)
+                    caminho_str = conteudo.get("apqp_path") if isinstance(conteudo, dict) else conteudo
+                    if caminho_str:
+                        caminho = Path(caminho_str)
+                        if caminho.exists():
+                            self.apqp_path = caminho
+                            self.lbl_apqp_path.config(text=str(caminho))
+            except Exception as e:
+                print(f"⚠️ Erro ao carregar conf.json: {e}")
 
-    def executar(self, tipo):
-        nome = self.entry_apqp.get().strip() or ler_apqp_json()
-        if not nome:
-            messagebox.showwarning("Aviso", "Configure a APQP primeiro na etapa 1")
-            return
+    def selecionar_apqp(self):
+        ficheiro = filedialog.askopenfilename(
+            title="Selecionar Ficheiro APQP",
+            filetypes=[("Excel Files", "*.xlsx *.xlsm"), ("Todos os ficheiros", "*.*")]
+        )
+        if ficheiro:
+            caminho = Path(ficheiro)
+            self.apqp_path = caminho
+            self.lbl_apqp_path.config(text=str(caminho))
+            try:
+                with open(CONF_PATH, 'w', encoding='utf-8') as a:
+                    json.dump({"apqp_path": str(caminho)}, a, indent=4, ensure_ascii=False)
+                print(f"💾 Caminho APQP guardado: {caminho.name}")
+            except Exception as e:
+                print(f"⚠️ Erro ao guardar configuração: {e}")
+
+    def validar_entradas(self):
+        if not self.apqp_path or not self.apqp_path.exists():
+            messagebox.showerror("Atenção", "Por favor, selecione um ficheiro APQP válido primeiro.")
+            return None, None
+        
         inicio = self.entry_inicio.get().strip()
         fim = self.entry_fim.get().strip()
-        if not inicio or not fim:
-            messagebox.showwarning("Aviso", "Preencha linha inicial e final")
-            return
-        try:
-            int(inicio)
-            int(fim)
-        except:
-            messagebox.showwarning("Aviso", "Linhas devem ser números")
-            return
+        
+        if not inicio.isdigit() or not fim.isdigit():
+            messagebox.showerror("Erro de Entrada", "As linhas inicial e final devem conter apenas números.")
+            return None, None
+            
+        if int(inicio) > int(fim):
+            messagebox.showerror("Erro de Intervalo", "A linha inicial não pode ser superior à linha final.")
+            return None, None
+            
+        return inicio, fim
 
-        # desativa botões
-        self.btn_acc.config(state=DISABLED, text="⏳ Processando...")
-        self.btn_fiin.config(state=DISABLED, text="⏳ Processando...")
+    def definir_estado_botoes(self, ativo: bool):
+        estado = tk.NORMAL if ativo else tk.DISABLED
+        self.btn_acc.config(state=estado)
+        self.btn_fiin.config(state=estado)
 
-        def tarefa():
+    def executar_em_thread(self, funcao):
+        self.definir_estado_botoes(False)
+        def wrapper():
             try:
-                self.log(f"\n{'='*50}")
-                self.log(f"Iniciando {tipo} - Linhas {inicio} até {fim} - APQP: {nome}")
-                dados = PegandoDados_APQP(nome, inicio, fim, log_func=self.log)
-                if tipo == "ACC":
-                    qtd = CriandoPastas(*dados, log_func=self.log)
-                    self.log(f"\n🎉 Finalizado! {qtd} pastas criadas.")
-                    self.root.after(0, lambda: messagebox.showinfo("Concluído", f"{qtd} pastas ACC + Custo criadas com sucesso!"))
-                else:
-                    PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = dados
-                    qtd = CriandoFIIN(PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, tipoList, descricaoLista, ClienteList, compradorList, Declinar, log_func=self.log)
-                    self.log(f"\n🎉 Finalizado! {qtd} FIINs criadas.")
-                    self.root.after(0, lambda: messagebox.showinfo("Concluído", f"{qtd} FIINs criadas com sucesso!"))
-            except FileNotFoundError as e:
-                self.log(f"❌ {e}")
-                self.root.after(0, lambda: messagebox.showerror("Arquivo não encontrado", str(e)))
+                funcao()
             except Exception as e:
-                import traceback
-                err = traceback.format_exc()
-                self.log(f"❌ Erro: {e}\n{err}")
-                self.root.after(0, lambda: messagebox.showerror("Erro", f"{e}\n\nVeja o log para detalhes"))
+                print(f"\n❌ Erro na Execução: {e}")
             finally:
-                self.root.after(0, lambda: self.btn_acc.config(state=NORMAL, text="📁  CRIAR ACC + CUSTO"))
-                self.root.after(0, lambda: self.btn_fiin.config(state=NORMAL, text="📄  CRIAR FIIN"))
+                self.definir_estado_botoes(True)
+        
+        t = threading.Thread(target=wrapper, daemon=True)
+        t.start()
 
-        threading.Thread(target=tarefa, daemon=True).start()
+    def acao_criar_acc(self):
+        inicio, fim = self.validar_entradas()
+        if not inicio:
+            return
+        
+        print("\n" + "="*55)
+        print("🚀 A Iniciar Automação de Pastas, ACC e Custo...")
+        
+        PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(self.apqp_path, inicio, fim)
+        
+        CriandoPastas(
+            PN_MethalLsit, PNsList, REVList, RFQList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, ClienteList, compradorList, PesoList, Declinar
+        )
+        print("✨ Processo finalizado com sucesso!")
 
+    def acao_criar_fiin(self):
+        inicio, fim = self.validar_entradas()
+        if not inicio:
+            return
+        
+        print("\n" + "="*55)
+        print("📄 A Iniciar Geração de Ficheiros FIIN...")
+        
+        PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, DataEntradaList, DataRespostaList, tipoList, descricaoLista, ListaFormanta_CompradorACC, compradorList, ClienteList, PesoList, Declinar = PegandoDados_APQP(self.apqp_path, inicio, fim)
+        
+        CriandoFIIN(
+            PN_MethalLsit, PNsList, REVList, RFQList, ClientePlantaList, VolumeAnualList, tipoList, descricaoLista, ClienteList, compradorList, Declinar
+        )
+        print("✨ Processo finalizado com sucesso!")
 
+# =========================================================
+# PONTO DE ENTRADA DO PROGRAMA
+# =========================================================
 if __name__ == "__main__":
-    root = Tk()
-    app = App(root)
+    root = tk.Tk()
+    app = APQPAppGUI(root)
     root.mainloop()
